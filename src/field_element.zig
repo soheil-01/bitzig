@@ -3,6 +3,8 @@ const BigInt = std.math.big.int.Managed;
 
 const FieldElement = @This();
 
+pub const Error = error{ NumNotInFieldRange, DifferentFields };
+
 allocator: std.mem.Allocator,
 num: BigInt,
 prime: BigInt,
@@ -12,7 +14,7 @@ pub fn init(allocator: std.mem.Allocator, num: anytype, prime: anytype) !FieldEl
     const big_prime = try BigInt.initSet(allocator, prime);
 
     if (big_num.order(big_prime) != .lt or !big_num.isPositive()) {
-        return error.NumNotInFieldRange;
+        return Error.NumNotInFieldRange;
     }
 
     return .{ .allocator = allocator, .num = big_num, .prime = big_prime };
@@ -47,14 +49,12 @@ pub fn neql(self: FieldElement, other: ?FieldElement) bool {
 
 pub fn add(allocator: std.mem.Allocator, a: FieldElement, b: FieldElement) !FieldElement {
     if (!a.prime.eql(b.prime)) {
-        return error.DifferentFields;
+        return Error.DifferentFields;
     }
 
-    var sum = try BigInt.init(allocator);
-    try sum.add(&a.num, &b.num);
-    defer sum.deinit();
-
-    const num = try mod(allocator, &sum, &a.prime);
+    var num = try BigInt.init(allocator);
+    try num.add(&a.num, &b.num);
+    try mod(allocator, &num, &num, &a.prime);
     const prime = try a.prime.cloneWithDifferentAllocator(allocator);
 
     return FieldElement{ .allocator = allocator, .num = num, .prime = prime };
@@ -62,14 +62,12 @@ pub fn add(allocator: std.mem.Allocator, a: FieldElement, b: FieldElement) !Fiel
 
 pub fn sub(allocator: std.mem.Allocator, a: FieldElement, b: FieldElement) !FieldElement {
     if (!a.prime.eql(b.prime)) {
-        return error.DifferentFields;
+        return Error.DifferentFields;
     }
 
-    var diff = try BigInt.init(allocator);
-    try diff.sub(&a.num, &b.num);
-    defer diff.deinit();
-
-    const num = try mod(allocator, &diff, &a.prime);
+    var num = try BigInt.init(allocator);
+    try num.sub(&a.num, &b.num);
+    try mod(allocator, &num, &num, &a.prime);
     const prime = try a.prime.cloneWithDifferentAllocator(allocator);
 
     return FieldElement{ .allocator = allocator, .num = num, .prime = prime };
@@ -77,14 +75,12 @@ pub fn sub(allocator: std.mem.Allocator, a: FieldElement, b: FieldElement) !Fiel
 
 pub fn mul(allocator: std.mem.Allocator, a: FieldElement, b: FieldElement) !FieldElement {
     if (!a.prime.eql(b.prime)) {
-        return error.DifferentFields;
+        return Error.DifferentFields;
     }
 
-    var product = try BigInt.init(allocator);
-    try product.mul(&a.num, &b.num);
-    defer product.deinit();
-
-    const num = try mod(allocator, &product, &a.prime);
+    var num = try BigInt.init(allocator);
+    try num.mul(&a.num, &b.num);
+    try mod(allocator, &num, &num, &a.prime);
     const prime = try a.prime.cloneWithDifferentAllocator(allocator);
 
     return FieldElement{ .allocator = allocator, .num = num, .prime = prime };
@@ -97,13 +93,13 @@ pub fn pow(allocator: std.mem.Allocator, a: FieldElement, b: anytype) !FieldElem
     var tmp = try BigInt.initSet(allocator, 1);
     defer tmp.deinit();
 
+    // tmp = prime - 1
     try tmp.sub(&a.prime, &tmp);
 
-    // exponent % prime - 1
-    var n = try mod(allocator, &exponent, &tmp);
-    defer n.deinit();
+    // exponent = exponent % (prime - 1)
+    try mod(allocator, &exponent, &exponent, &tmp);
 
-    const num = try modularPow(allocator, &a.num, &n, &a.prime);
+    const num = try modularPow(allocator, &a.num, &exponent, &a.prime);
     const prime = try a.prime.cloneWithDifferentAllocator(allocator);
 
     return FieldElement{ .allocator = allocator, .num = num, .prime = prime };
@@ -111,7 +107,7 @@ pub fn pow(allocator: std.mem.Allocator, a: FieldElement, b: anytype) !FieldElem
 
 pub fn div(allocator: std.mem.Allocator, a: FieldElement, b: FieldElement) !FieldElement {
     if (!a.prime.eql(b.prime)) {
-        return error.DifferentFields;
+        return Error.DifferentFields;
     }
 
     var exponent = try BigInt.initSet(allocator, 2);
@@ -124,25 +120,21 @@ pub fn div(allocator: std.mem.Allocator, a: FieldElement, b: FieldElement) !Fiel
     var r = try modularPow(allocator, &b.num, &exponent, &b.prime);
     defer r.deinit();
 
-    var tmp = try BigInt.init(allocator);
-    defer tmp.deinit();
-    try tmp.mul(&a.num, &r);
+    var num = try BigInt.init(allocator);
+    try num.mul(&a.num, &r);
 
     // num = a * 1/b % prime
-    const num = try mod(allocator, &tmp, &a.prime);
+    try mod(allocator, &num, &num, &a.prime);
     const prime = try a.prime.cloneWithDifferentAllocator(allocator);
 
     return FieldElement{ .allocator = allocator, .num = num, .prime = prime };
 }
 
-fn mod(allocator: std.mem.Allocator, a: *const BigInt, b: *const BigInt) !BigInt {
+fn mod(allocator: std.mem.Allocator, rem: *BigInt, a: *const BigInt, b: *const BigInt) !void {
     var q = try BigInt.init(allocator);
     defer q.deinit();
-    var rem = try BigInt.init(allocator);
 
-    try BigInt.divFloor(&q, &rem, a, b);
-
-    return rem;
+    try BigInt.divFloor(&q, rem, a, b);
 }
 
 fn modularPow(allocator: std.mem.Allocator, base: *const BigInt, exponent: *const BigInt, modules: *const BigInt) !BigInt {
@@ -156,35 +148,26 @@ fn modularPow(allocator: std.mem.Allocator, base: *const BigInt, exponent: *cons
 
     while (e.isPositive() and !e.eqlZero()) : (try e.shiftRight(&e, 1)) {
         if (e.isOdd()) {
-            var tmp = try BigInt.init(allocator);
-            try tmp.mul(&result, &b);
-            defer tmp.deinit();
-
-            result.deinit();
-            result = try mod(allocator, &tmp, modules);
+            try result.mul(&result, &b);
+            try mod(allocator, &result, &result, modules);
         }
 
-        var tmp = try BigInt.init(allocator);
-        try tmp.mul(&b, &b);
-        defer tmp.deinit();
-
-        b.deinit();
-        b = try mod(allocator, &tmp, modules);
+        try b.sqr(&b);
+        try mod(allocator, &b, &b, modules);
     }
 
     return result;
 }
 
 const testing = std.testing;
+const testing_alloc = testing.allocator;
 
 test "FieldElement: equality" {
-    const allocator = testing.allocator;
-
-    var a = try FieldElement.init(allocator, 2, 31);
+    var a = try FieldElement.init(testing_alloc, 2, 31);
     defer a.deinit();
-    var b = try FieldElement.init(allocator, 2, 31);
+    var b = try FieldElement.init(testing_alloc, 2, 31);
     defer b.deinit();
-    var c = try FieldElement.init(allocator, 15, 31);
+    var c = try FieldElement.init(testing_alloc, 15, 31);
     defer c.deinit();
 
     try testing.expect(a.eql(b));
@@ -194,124 +177,114 @@ test "FieldElement: equality" {
 }
 
 test "FieldElement: add" {
-    const allocator = testing.allocator;
-
-    var a1 = try FieldElement.init(allocator, 2, 31);
+    var a1 = try FieldElement.init(testing_alloc, 2, 31);
     defer a1.deinit();
-    var b1 = try FieldElement.init(allocator, 15, 31);
+    var b1 = try FieldElement.init(testing_alloc, 15, 31);
     defer b1.deinit();
-    var result1 = try FieldElement.add(allocator, a1, b1);
+    var result1 = try FieldElement.add(testing_alloc, a1, b1);
     defer result1.deinit();
-    var expected1 = try FieldElement.init(allocator, 17, 31);
+    var expected1 = try FieldElement.init(testing_alloc, 17, 31);
     defer expected1.deinit();
     try testing.expect(result1.eql(expected1));
 
-    var a2 = try FieldElement.init(allocator, 17, 31);
+    var a2 = try FieldElement.init(testing_alloc, 17, 31);
     defer a2.deinit();
-    var b2 = try FieldElement.init(allocator, 21, 31);
+    var b2 = try FieldElement.init(testing_alloc, 21, 31);
     defer b2.deinit();
-    var result2 = try FieldElement.add(allocator, a2, b2);
+    var result2 = try FieldElement.add(testing_alloc, a2, b2);
     defer result2.deinit();
-    var expected2 = try FieldElement.init(allocator, 7, 31);
+    var expected2 = try FieldElement.init(testing_alloc, 7, 31);
     defer expected2.deinit();
     try testing.expect(result2.eql(expected2));
 }
 
 test "FieldElement: sub" {
-    const allocator = testing.allocator;
-
-    var a1 = try FieldElement.init(allocator, 29, 31);
+    var a1 = try FieldElement.init(testing_alloc, 29, 31);
     defer a1.deinit();
-    var b1 = try FieldElement.init(allocator, 4, 31);
+    var b1 = try FieldElement.init(testing_alloc, 4, 31);
     defer b1.deinit();
-    var result1 = try FieldElement.sub(allocator, a1, b1);
+    var result1 = try FieldElement.sub(testing_alloc, a1, b1);
     defer result1.deinit();
-    var expected1 = try FieldElement.init(allocator, 25, 31);
+    var expected1 = try FieldElement.init(testing_alloc, 25, 31);
     defer expected1.deinit();
     try testing.expect(result1.eql(expected1));
 
-    var a2 = try FieldElement.init(allocator, 15, 31);
+    var a2 = try FieldElement.init(testing_alloc, 15, 31);
     defer a2.deinit();
-    var b2 = try FieldElement.init(allocator, 30, 31);
+    var b2 = try FieldElement.init(testing_alloc, 30, 31);
     defer b2.deinit();
-    var result2 = try FieldElement.sub(allocator, a2, b2);
+    var result2 = try FieldElement.sub(testing_alloc, a2, b2);
     defer result2.deinit();
-    var expected2 = try FieldElement.init(allocator, 16, 31);
+    var expected2 = try FieldElement.init(testing_alloc, 16, 31);
     defer expected2.deinit();
     try testing.expect(result2.eql(expected2));
 }
 
 test "FieldElement: mul" {
-    const allocator = testing.allocator;
-
-    var a = try FieldElement.init(allocator, 24, 31);
+    var a = try FieldElement.init(testing_alloc, 24, 31);
     defer a.deinit();
-    var b = try FieldElement.init(allocator, 19, 31);
+    var b = try FieldElement.init(testing_alloc, 19, 31);
     defer b.deinit();
 
-    var result = try FieldElement.mul(allocator, a, b);
+    var result = try FieldElement.mul(testing_alloc, a, b);
     defer result.deinit();
 
-    var expected = try FieldElement.init(allocator, 22, 31);
+    var expected = try FieldElement.init(testing_alloc, 22, 31);
     defer expected.deinit();
 
     try testing.expect(result.eql(expected));
 }
 
 test "FieldElement: pow" {
-    const allocator = testing.allocator;
-
-    var a1 = try FieldElement.init(allocator, 17, 31);
+    var a1 = try FieldElement.init(testing_alloc, 17, 31);
     defer a1.deinit();
-    var result1 = try FieldElement.pow(allocator, a1, 3);
+    var result1 = try FieldElement.pow(testing_alloc, a1, 3);
     defer result1.deinit();
-    var expected1 = try FieldElement.init(allocator, 15, 31);
+    var expected1 = try FieldElement.init(testing_alloc, 15, 31);
     defer expected1.deinit();
     try testing.expect(result1.eql(expected1));
 
-    var a2 = try FieldElement.init(allocator, 5, 31);
+    var a2 = try FieldElement.init(testing_alloc, 5, 31);
     defer a2.deinit();
-    var b2 = try FieldElement.init(allocator, 18, 31);
+    var b2 = try FieldElement.init(testing_alloc, 18, 31);
     defer b2.deinit();
-    var c2 = try FieldElement.pow(allocator, a2, 5);
+    var c2 = try FieldElement.pow(testing_alloc, a2, 5);
     defer c2.deinit();
-    var result2 = try FieldElement.mul(allocator, b2, c2);
+    var result2 = try FieldElement.mul(testing_alloc, b2, c2);
     defer result2.deinit();
-    var expected2 = try FieldElement.init(allocator, 16, 31);
+    var expected2 = try FieldElement.init(testing_alloc, 16, 31);
     defer expected2.deinit();
     try testing.expect(result2.eql(expected2));
 }
 
 test "FieldElement: div" {
-    const allocator = testing.allocator;
-
-    var a1 = try FieldElement.init(allocator, 3, 31);
+    var a1 = try FieldElement.init(testing_alloc, 3, 31);
     defer a1.deinit();
-    var b1 = try FieldElement.init(allocator, 24, 31);
+    var b1 = try FieldElement.init(testing_alloc, 24, 31);
     defer b1.deinit();
-    var result1 = try FieldElement.div(allocator, a1, b1);
+    var result1 = try FieldElement.div(testing_alloc, a1, b1);
     defer result1.deinit();
-    var expected1 = try FieldElement.init(allocator, 4, 31);
+    var expected1 = try FieldElement.init(testing_alloc, 4, 31);
     defer expected1.deinit();
     try testing.expect(result1.eql(expected1));
 
-    var a2 = try FieldElement.init(allocator, 17, 31);
+    var a2 = try FieldElement.init(testing_alloc, 17, 31);
     defer a2.deinit();
-    var result2 = try FieldElement.pow(allocator, a2, -3);
+    var result2 = try FieldElement.pow(testing_alloc, a2, -3);
     defer result2.deinit();
-    var expected2 = try FieldElement.init(allocator, 29, 31);
+    var expected2 = try FieldElement.init(testing_alloc, 29, 31);
     defer expected2.deinit();
     try testing.expect(result2.eql(expected2));
 
-    var a3 = try FieldElement.init(allocator, 4, 31);
+    var a3 = try FieldElement.init(testing_alloc, 4, 31);
     defer a3.deinit();
-    var b3 = try FieldElement.init(allocator, 11, 31);
+    var b3 = try FieldElement.init(testing_alloc, 11, 31);
     defer b3.deinit();
-    var tmp = try FieldElement.pow(allocator, a3, -4);
+    var tmp = try FieldElement.pow(testing_alloc, a3, -4);
     defer tmp.deinit();
-    var result3 = try FieldElement.mul(allocator, tmp, b3);
+    var result3 = try FieldElement.mul(testing_alloc, tmp, b3);
     defer result3.deinit();
-    var expected3 = try FieldElement.init(allocator, 13, 31);
+    var expected3 = try FieldElement.init(testing_alloc, 13, 31);
     defer expected3.deinit();
     try testing.expect(result3.eql(expected3));
 }
