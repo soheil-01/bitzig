@@ -35,15 +35,11 @@ pub fn toString(self: FieldElement) ![]u8 {
     return std.fmt.allocPrint(self.allocator, "FieldElement_{s}({s})", .{ prime_str, num_str });
 }
 
-pub fn eql(self: FieldElement, other: ?FieldElement) bool {
-    if (other) |value| {
-        return self.num.eql(value.num) and self.prime.eql(value.prime);
-    }
-
-    return false;
+pub fn eql(self: FieldElement, other: FieldElement) bool {
+    return self.num.eql(other.num) and self.prime.eql(other.prime);
 }
 
-pub fn neql(self: FieldElement, other: ?FieldElement) bool {
+pub fn neql(self: FieldElement, other: FieldElement) bool {
     return !self.eql(other);
 }
 
@@ -172,7 +168,6 @@ test "FieldElement: equality" {
 
     try testing.expect(a.eql(b));
     try testing.expect(!a.neql(b));
-    try testing.expect(a.neql(null));
     try testing.expect(a.neql(c));
 }
 
