@@ -50,15 +50,11 @@ pub fn add(self: Point, other: Point) !Point {
     const y2 = other.y.?;
 
     if (x1 == x2) {
-        if (y1 != y2) {
+        if (y1 != y2 or y1 == 0) {
             return .{ .x = null, .y = null, .a = self.a, .b = self.b };
         }
 
         // y1 == y2
-
-        if (y1 == 0) {
-            return .{ .x = null, .y = null, .a = self.a, .b = self.b };
-        }
 
         const s = @divFloor((3 * std.math.pow(i64, x1, 2) + self.a), 2 * y1);
         const x3 = std.math.pow(i64, s, 2) - 2 * x1;
