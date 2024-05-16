@@ -13,6 +13,7 @@ pub fn init(allocator: std.mem.Allocator, num: anytype, prime: anytype) !FieldEl
     const big_num = try BigInt.initSet(allocator, num);
     const big_prime = try BigInt.initSet(allocator, prime);
 
+    // 0 < num < prime
     if (big_num.order(big_prime) != .lt or !big_num.isPositive()) {
         return Error.NumNotInFieldRange;
     }
@@ -20,19 +21,23 @@ pub fn init(allocator: std.mem.Allocator, num: anytype, prime: anytype) !FieldEl
     return .{ .allocator = allocator, .num = big_num, .prime = big_prime };
 }
 
+pub fn clone(self: FieldElement, allocator: std.mem.Allocator) !FieldElement {
+    return .{ .allocator = allocator, .num = try self.num.cloneWithDifferentAllocator(allocator), .prime = try self.prime.cloneWithDifferentAllocator(allocator) };
+}
+
 pub fn deinit(self: *FieldElement) void {
     self.num.deinit();
     self.prime.deinit();
 }
 
-pub fn toString(self: FieldElement) ![]u8 {
-    const num_str = try self.num.toString(self.allocator, 10, .lower);
-    defer self.allocator.free(num_str);
+pub fn toString(self: FieldElement, allocator: std.mem.Allocator) ![]u8 {
+    const num_str = try self.num.toString(allocator, 10, .lower);
+    defer allocator.free(num_str);
 
-    const prime_str = try self.prime.toString(self.allocator, 10, .lower);
-    defer self.allocator.free(prime_str);
+    const prime_str = try self.prime.toString(allocator, 10, .lower);
+    defer allocator.free(prime_str);
 
-    return std.fmt.allocPrint(self.allocator, "FieldElement_{s}({s})", .{ prime_str, num_str });
+    return std.fmt.allocPrint(allocator, "FieldElement_{s}({s})", .{ prime_str, num_str });
 }
 
 pub fn eql(self: FieldElement, other: FieldElement) bool {
@@ -41,6 +46,10 @@ pub fn eql(self: FieldElement, other: FieldElement) bool {
 
 pub fn neql(self: FieldElement, other: FieldElement) bool {
     return !self.eql(other);
+}
+
+pub fn eqlZero(self: FieldElement) bool {
+    return self.num.eqlZero();
 }
 
 pub fn add(allocator: std.mem.Allocator, a: FieldElement, b: FieldElement) !FieldElement {
@@ -80,6 +89,16 @@ pub fn mul(allocator: std.mem.Allocator, a: FieldElement, b: FieldElement) !Fiel
     const prime = try a.prime.cloneWithDifferentAllocator(allocator);
 
     return FieldElement{ .allocator = allocator, .num = num, .prime = prime };
+}
+
+pub fn rmul(allocator: std.mem.Allocator, a: FieldElement, b: anytype) !FieldElement {
+    const big_b = try BigInt.initSet(allocator, b);
+    const prime = try BigInt.cloneWithDifferentAllocator(a.prime, allocator);
+
+    var scalar = FieldElement{ .allocator = allocator, .num = big_b, .prime = prime };
+    defer scalar.deinit();
+
+    return FieldElement.mul(allocator, a, scalar);
 }
 
 pub fn pow(allocator: std.mem.Allocator, a: FieldElement, b: anytype) !FieldElement {
@@ -225,6 +244,19 @@ test "FieldElement: mul" {
     defer result.deinit();
 
     var expected = try FieldElement.init(testing_alloc, 22, 31);
+    defer expected.deinit();
+
+    try testing.expect(result.eql(expected));
+}
+
+test "FieldElement: rmul" {
+    var a = try FieldElement.init(testing_alloc, 17, 31);
+    defer a.deinit();
+
+    var result = try FieldElement.rmul(testing_alloc, a, 4);
+    defer result.deinit();
+
+    var expected = try FieldElement.init(testing_alloc, 6, 31);
     defer expected.deinit();
 
     try testing.expect(result.eql(expected));
