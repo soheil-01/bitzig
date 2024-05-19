@@ -2,7 +2,7 @@ const std = @import("std");
 const FieldElement = @import("field_element.zig");
 const assert = std.debug.assert;
 
-const Point = @This();
+const ECPoint = @This();
 
 pub const Error = error{NotOnTheCurve};
 
@@ -11,7 +11,7 @@ y: ?FieldElement,
 a: FieldElement,
 b: FieldElement,
 
-pub fn init(x: ?FieldElement, y: ?FieldElement, a: FieldElement, b: FieldElement) !Point {
+pub fn init(x: ?FieldElement, y: ?FieldElement, a: FieldElement, b: FieldElement) !ECPoint {
     if (x == null or y == null) {
         assert(x == null and y == null);
     } else {
@@ -26,7 +26,7 @@ pub fn init(x: ?FieldElement, y: ?FieldElement, a: FieldElement, b: FieldElement
     return .{ .x = x, .y = y, .a = a, .b = b };
 }
 
-pub fn toString(self: Point, allocator: std.mem.Allocator) ![]u8 {
+pub fn toString(self: ECPoint, allocator: std.mem.Allocator) ![]u8 {
     if (self.x == null) {
         return std.fmt.allocPrint(allocator, "Point(infinity)", .{});
     }
@@ -46,7 +46,7 @@ pub fn toString(self: Point, allocator: std.mem.Allocator) ![]u8 {
     return std.fmt.allocPrint(allocator, "Point({s},{s})_{s}_{s}", .{ x_string, y_string, a_string, b_string });
 }
 
-pub fn eql(self: Point, other: Point) bool {
+pub fn eql(self: ECPoint, other: ECPoint) bool {
     if (self.x == null) {
         return other.x == null;
     }
@@ -54,15 +54,15 @@ pub fn eql(self: Point, other: Point) bool {
     return self.x.?.eql(other.x.?) and self.y.?.eql(other.y.?) and self.a.eql(other.a) and self.b.eql(other.b);
 }
 
-pub fn neql(self: Point, other: Point) bool {
+pub fn neql(self: ECPoint, other: ECPoint) bool {
     return !self.eql(other);
 }
 
-pub fn atInfinity(self: Point) bool {
+pub fn atInfinity(self: ECPoint) bool {
     return self.x == null;
 }
 
-pub fn add(self: Point, other: Point) Point {
+pub fn add(self: ECPoint, other: ECPoint) ECPoint {
     assert(self.a.eql(other.a) and self.b.eql(other.b));
 
     if (self.x == null) {
@@ -113,11 +113,11 @@ pub fn add(self: Point, other: Point) Point {
     return .{ .x = x3, .y = y3, .a = a, .b = b };
 }
 
-pub fn rmul(self: Point, coefficient: u256) Point {
+pub fn rmul(self: ECPoint, coefficient: u256) ECPoint {
     var coef = coefficient;
 
     var current = self;
-    var result = Point{ .x = null, .y = null, .a = self.a, .b = self.b };
+    var result = ECPoint{ .x = null, .y = null, .a = self.a, .b = self.b };
 
     while (coef > 0) : (coef >>= 1) {
         if (coef & 1 == 1) {
@@ -144,14 +144,14 @@ test "Point: on the curve" {
         const x = try FieldElement.init(p.x, prime);
         const y = try FieldElement.init(p.y, prime);
 
-        _ = try Point.init(x, y, a, b);
+        _ = try ECPoint.init(x, y, a, b);
     }
 
     inline for (invalid_points) |p| {
         const x = try FieldElement.init(p.x, prime);
         const y = try FieldElement.init(p.y, prime);
 
-        const point = Point.init(x, y, a, b);
+        const point = ECPoint.init(x, y, a, b);
         try testing.expectError(Error.NotOnTheCurve, point);
     }
 }
@@ -170,15 +170,15 @@ test "Point: add" {
     inline for (additions) |addition| {
         const x1 = try FieldElement.init(addition.x1, prime);
         const y1 = try FieldElement.init(addition.y1, prime);
-        const p1 = try Point.init(x1, y1, a, b);
+        const p1 = try ECPoint.init(x1, y1, a, b);
 
         const x2 = try FieldElement.init(addition.x2, prime);
         const y2 = try FieldElement.init(addition.y2, prime);
-        const p2 = try Point.init(x2, y2, a, b);
+        const p2 = try ECPoint.init(x2, y2, a, b);
 
         const x3 = try FieldElement.init(addition.x3, prime);
         const y3 = try FieldElement.init(addition.y3, prime);
-        const p3 = try Point.init(x3, y3, a, b);
+        const p3 = try ECPoint.init(x3, y3, a, b);
 
         try testing.expect(p1.add(p2).eql(p3));
     }
@@ -201,13 +201,13 @@ test "Point: rmul" {
     inline for (multiplications) |multiplication| {
         const x1 = try FieldElement.init(multiplication.x1, prime);
         const y1 = try FieldElement.init(multiplication.y1, prime);
-        const p1 = try Point.init(x1, y1, a, b);
+        const p1 = try ECPoint.init(x1, y1, a, b);
 
         if (@TypeOf(multiplication.x2) != @TypeOf(null)) {
             const x2 = try FieldElement.init(multiplication.x2, prime);
             const y2 = try FieldElement.init(multiplication.y2, prime);
             const p2 = p1.rmul(multiplication.coefficient);
-            const p2_expected = try Point.init(x2, y2, a, b);
+            const p2_expected = try ECPoint.init(x2, y2, a, b);
 
             try testing.expect(p2.eql(p2_expected));
         } else {
