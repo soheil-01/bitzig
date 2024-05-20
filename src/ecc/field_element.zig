@@ -1,4 +1,6 @@
 const std = @import("std");
+const utils = @import("utils.zig");
+
 const assert = std.debug.assert;
 
 const FieldElement = @This();
@@ -18,7 +20,7 @@ pub fn init(num: u256, prime: u256) !FieldElement {
 }
 
 pub fn toString(self: FieldElement, allocator: std.mem.Allocator) ![]u8 {
-    return std.fmt.allocPrint(allocator, "FieldElement_{s}({s})", .{ self.prime, self.num });
+    return std.fmt.allocPrint(allocator, "FieldElement_{d}({d})", .{ self.prime, self.num });
 }
 
 pub fn eql(self: FieldElement, other: FieldElement) bool {
@@ -74,22 +76,10 @@ pub fn rmul(a: FieldElement, b: u256) FieldElement {
 }
 
 pub fn pow(a: FieldElement, b: u256) FieldElement {
-    var base = a.num;
-
     var exponent = b;
     exponent = @mod(exponent, a.prime - 1);
 
-    var num: u256 = 1;
-
-    while (exponent > 0) : (exponent >>= 1) {
-        if (exponent & 1 == 1) {
-            num *= base;
-            num = @mod(num, a.prime);
-        }
-
-        base *= base;
-        base = @mod(base, a.prime);
-    }
+    const num = utils.mod_pow(a.num, exponent, a.prime);
 
     return FieldElement{ .num = num, .prime = a.prime };
 }
