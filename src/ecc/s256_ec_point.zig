@@ -5,6 +5,8 @@ const FieldElement = @import("field_element.zig");
 const ECPoint = @import("ec_point.zig");
 const Signature = @import("signature.zig");
 
+const assert = std.debug.assert;
+
 const S256ECPoint = @This();
 
 const p = constants.secp256k1_p;
@@ -22,8 +24,16 @@ fn initS256FieldElement(num: u256) !FieldElement {
     return FieldElement.init(num, p);
 }
 
-pub fn init(x: u256, y: u256) !S256ECPoint {
-    return .{ .inner = try ECPoint.init(try initS256FieldElement(x), try initS256FieldElement(y), try initS256FieldElement(a), try initS256FieldElement(b)) };
+pub fn init(x: ?u256, y: ?u256) !S256ECPoint {
+    const a_fe = try initS256FieldElement(a);
+    const b_fe = try initS256FieldElement(b);
+
+    if (x == null) {
+        assert(x == null and y == null);
+        return .{ .inner = try ECPoint.init(null, null, a_fe, b_fe) };
+    }
+
+    return .{ .inner = try ECPoint.init(try initS256FieldElement(x.?), try initS256FieldElement(y.?), a_fe, b_fe) };
 }
 
 pub fn toString(self: S256ECPoint, allocator: std.mem.Allocator) ![]u8 {
