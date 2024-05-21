@@ -93,9 +93,13 @@ pub fn div(a: FieldElement, b: FieldElement) FieldElement {
     return a.mul(b_inverse);
 }
 
-fn inverse(self: FieldElement) FieldElement {
+pub fn inverse(self: FieldElement) FieldElement {
     // 1 / num = num ** (prime - 2)
     return self.pow(self.prime - 2);
+}
+
+pub fn isOdd(self: FieldElement) bool {
+    return self.num & 1 == 1;
 }
 
 const expect = std.testing.expect;

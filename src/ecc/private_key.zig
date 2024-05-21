@@ -1,7 +1,7 @@
 const std = @import("std");
 const constants = @import("constants.zig");
 const utils = @import("utils.zig");
-const S256ECPoint = @import("s256_ec_point.zig");
+const S256Point = @import("s256_point.zig");
 const Signature = @import("signature.zig");
 
 const HmacSha256 = std.crypto.auth.hmac.sha2.HmacSha256;
@@ -9,10 +9,10 @@ const HmacSha256 = std.crypto.auth.hmac.sha2.HmacSha256;
 const PrivateKey = @This();
 
 const n = constants.secp256k1_n;
-const G = S256ECPoint.G;
+const G = S256Point.G;
 
 secret: u256,
-point: S256ECPoint,
+point: S256Point,
 
 pub fn init(secret: u256) PrivateKey {
     return .{ .secret = secret, .point = G.rmul(secret) };
