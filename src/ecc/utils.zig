@@ -1,4 +1,7 @@
 const std = @import("std");
+const c = @cImport({
+    @cInclude("ripemd160.h");
+});
 
 const assert = std.debug.assert;
 const Sha256 = std.crypto.hash.sha2.Sha256;
@@ -44,8 +47,8 @@ pub fn encode_base58(dest: []u8, source: []const u8) usize {
         dest[i] = alphabet[@intCast(num % 58)];
     }
 
-    for (source) |c| {
-        if (c == 0) {
+    for (source) |ch| {
+        if (ch == 0) {
             assert(i > 0);
             i -= 1;
             dest[i] = alphabet[0];
@@ -53,4 +56,11 @@ pub fn encode_base58(dest: []u8, source: []const u8) usize {
     }
 
     return i;
+}
+
+pub fn ripemd160(msg: [:0]const u8) [20]u8 {
+    var hash: [20]u8 = undefined;
+    c.ripemd160(&msg, msg.len, &hash);
+
+    return hash;
 }

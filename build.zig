@@ -15,6 +15,12 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    const ripemd160 = b.addStaticLibrary(.{ .name = "ripemd160", .optimize = .Debug, .target = target });
+    ripemd160.addCSourceFiles(.{
+        .files = &.{ "lib/ripemd160.c", "lib/memzero.c" },
+    });
+    ripemd160.linkLibC();
+
     const lib = b.addStaticLibrary(.{
         .name = "bitzig",
         // In this case the main source file is merely a path, however, in more
@@ -23,6 +29,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    lib.linkLibrary(ripemd160);
+    lib.addIncludePath(b.path("lib"));
 
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
@@ -35,6 +43,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    exe.linkLibrary(ripemd160);
+    exe.addIncludePath(b.path("lib"));
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
@@ -71,6 +81,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    tests.linkLibrary(ripemd160);
+    tests.addIncludePath(b.path("lib"));
     const run_tests = b.addRunArtifact(tests);
 
     // Similar to creating the run step earlier, this exposes a `test` step to
