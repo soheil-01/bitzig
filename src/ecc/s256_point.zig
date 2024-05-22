@@ -103,7 +103,7 @@ pub fn toCompressedSec(self: S256Point) [33]u8 {
     return out;
 }
 
-pub fn parse(s: []const u8) !S256Point {
+pub fn fromSec(s: []const u8) !S256Point {
     if (s.len < 1) {
         return Error.InvalidEncoding;
     }

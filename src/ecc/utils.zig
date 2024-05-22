@@ -1,5 +1,8 @@
 const std = @import("std");
 
+const assert = std.debug.assert;
+const Sha256 = std.crypto.hash.sha2.Sha256;
+
 pub fn mod_pow(a: u256, b: u256, mod: u256) u256 {
     var base = a;
     var exponent = b;
@@ -19,4 +22,35 @@ pub fn mod_pow(a: u256, b: u256, mod: u256) u256 {
     }
 
     return result;
+}
+
+pub fn encode_base58(dest: []u8, source: []const u8) usize {
+    assert(source.len <= 128);
+    const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+    var source_extended: [128]u8 = undefined;
+    if (source.len != 128) {
+        source_extended = [_]u8{0} ** 128;
+    }
+
+    std.mem.copyForwards(u8, source_extended[(128 - source.len)..], source);
+
+    var num = std.mem.readInt(u1024, &source_extended, .big);
+
+    var i = dest.len;
+    while (num > 0) : (num /= 58) {
+        assert(i > 0);
+        i -= 1;
+        dest[i] = alphabet[@intCast(num % 58)];
+    }
+
+    for (source) |c| {
+        if (c == 0) {
+            assert(i > 0);
+            i -= 1;
+            dest[i] = alphabet[0];
+        } else break;
+    }
+
+    return i;
 }

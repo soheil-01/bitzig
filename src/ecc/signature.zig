@@ -5,7 +5,7 @@ const Signature = @This();
 r: u256,
 s: u256,
 
-pub const Error = error{BadSignature};
+pub const Error = error{InvalidEncoding};
 
 pub const der_encoded_max_length = 72;
 
@@ -48,52 +48,52 @@ pub fn toDer(self: Signature, buf: *[der_encoded_max_length]u8) []u8 {
     return fb.getWritten();
 }
 
-pub fn parse(der: []const u8) !Signature {
+pub fn fromDer(der: []const u8) !Signature {
     var fb = std.io.fixedBufferStream(der);
     const reader = fb.reader();
 
-    const compound = reader.readByte() catch return Error.BadSignature;
+    const compound = reader.readByte() catch return Error.InvalidEncoding;
     if (compound != 0x30) {
         std.debug.print("compound: {d}\n", .{compound});
-        return Error.BadSignature;
+        return Error.InvalidEncoding;
     }
 
-    const sig_len = reader.readByte() catch return Error.BadSignature;
+    const sig_len = reader.readByte() catch return Error.InvalidEncoding;
     if (sig_len + 2 != der.len) {
         std.debug.print("sig_len: {d}, der.len: {d}\n", .{ sig_len, der.len });
-        return Error.BadSignature;
+        return Error.InvalidEncoding;
     }
 
-    const r = try parseDerInt(reader);
-    const s = try parseDerInt(reader);
+    const r = try readDerInt(reader);
+    const s = try readDerInt(reader);
 
     if (fb.getPos() catch unreachable != der.len) {
-        return Error.BadSignature;
+        return Error.InvalidEncoding;
     }
 
     return init(r, s);
 }
 
-fn parseDerInt(reader: anytype) !u256 {
-    const marker = reader.readByte() catch return Error.BadSignature;
+fn readDerInt(reader: anytype) !u256 {
+    const marker = reader.readByte() catch return Error.InvalidEncoding;
     if (marker != 0x02) {
-        return Error.BadSignature;
+        return Error.InvalidEncoding;
     }
 
     var buf: [32]u8 = undefined;
-    var len = reader.readByte() catch return Error.BadSignature;
+    var len = reader.readByte() catch return Error.InvalidEncoding;
     if (len == 0 or len > buf.len + 1) {
-        return Error.BadSignature;
+        return Error.InvalidEncoding;
     }
 
     if (len == buf.len + 1) {
-        if ((reader.readByte() catch return Error.BadSignature) != 0) {
-            return Error.BadSignature;
+        if ((reader.readByte() catch return Error.InvalidEncoding) != 0) {
+            return Error.InvalidEncoding;
         }
         len -= 1;
     }
 
-    reader.readNoEof(&buf) catch return Error.BadSignature;
+    reader.readNoEof(&buf) catch return Error.InvalidEncoding;
 
     return std.mem.readInt(u256, &buf, .big);
 }
@@ -111,7 +111,7 @@ test "Signature: der" {
         var buf: [72]u8 = undefined;
         const der = sig.toDer(&buf);
 
-        const sig2 = try parse(der);
+        const sig2 = try fromDer(der);
 
         try testing.expectEqual(sig.r, sig2.r);
         try testing.expectEqual(sig.s, sig2.s);
