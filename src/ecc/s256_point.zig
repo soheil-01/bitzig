@@ -6,6 +6,7 @@ const ECPoint = @import("ec_point.zig");
 const Signature = @import("signature.zig");
 
 const assert = std.debug.assert;
+const Sha256 = std.crypto.hash.sha2.Sha256;
 
 const S256Point = @This();
 
@@ -154,6 +155,22 @@ pub fn fromSec(s: []const u8) !S256Point {
     }
 }
 
+pub fn address(self: S256Point, dest: []u8, compressed: bool, testnet: bool) usize {
+    const sec: []const u8 = if (compressed) &self.toCompressedSec() else &self.toUncompressedSec();
+
+    var hash160: [21]u8 = undefined;
+    hash160[1..].* = utils.hash160(sec);
+    hash160[0] = if (testnet) 0x6f else 0x00;
+
+    var sha256_1: [32]u8 = undefined;
+    Sha256.hash(&hash160, &sha256_1, .{});
+
+    var sha256_2: [32]u8 = undefined;
+    Sha256.hash(&sha256_1, &sha256_2, .{});
+
+    return utils.encode_base58(dest, hash160 ++ sha256_2[0..4]);
+}
+
 const testing = std.testing;
 
 test "S256Point: order" {
@@ -224,5 +241,52 @@ test "S256Point: sec" {
 
         try testing.expectEqualStrings(&uncompressed, &point.toUncompressedSec());
         try testing.expectEqualStrings(&compressed, &point.toCompressedSec());
+    }
+}
+
+test "S256Point: address" {
+    {
+        const secret: u256 = 888 * 888 * 888;
+        const mainnet_address = "148dY81A9BmdpMhvYEVznrM45kWN32vSCN";
+        const testnet_address = "mieaqB68xDCtbUBYFoUNcmZNwk74xcBfTP";
+        const point = G.rmul(secret);
+
+        var addr: [34]u8 = undefined;
+        var i = point.address(&addr, true, false);
+        try testing.expectEqualStrings(mainnet_address, addr[i..]);
+
+        addr = undefined;
+        i = point.address(&addr, true, true);
+        try testing.expectEqualStrings(testnet_address, addr[i..]);
+    }
+
+    {
+        const secret: u256 = 321;
+        const mainnet_address = "1S6g2xBJSED7Qr9CYZib5f4PYVhHZiVfj";
+        const testnet_address = "mfx3y63A7TfTtXKkv7Y6QzsPFY6QCBCXiP";
+        const point = G.rmul(secret);
+
+        var addr: [34]u8 = undefined;
+        var i = point.address(&addr, false, false);
+        try testing.expectEqualStrings(mainnet_address, addr[i..]);
+
+        addr = undefined;
+        i = point.address(&addr, false, true);
+        try testing.expectEqualStrings(testnet_address, addr[i..]);
+    }
+
+    {
+        const secret: u256 = 4242424242;
+        const mainnet_address = "1226JSptcStqn4Yq9aAmNXdwdc2ixuH9nb";
+        const testnet_address = "mgY3bVusRUL6ZB2Ss999CSrGVbdRwVpM8s";
+        const point = G.rmul(secret);
+
+        var addr: [34]u8 = undefined;
+        var i = point.address(&addr, false, false);
+        try testing.expectEqualStrings(mainnet_address, addr[i..]);
+
+        addr = undefined;
+        i = point.address(&addr, false, true);
+        try testing.expectEqualStrings(testnet_address, addr[i..]);
     }
 }

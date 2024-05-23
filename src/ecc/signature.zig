@@ -54,13 +54,11 @@ pub fn fromDer(der: []const u8) !Signature {
 
     const compound = reader.readByte() catch return Error.InvalidEncoding;
     if (compound != 0x30) {
-        std.debug.print("compound: {d}\n", .{compound});
         return Error.InvalidEncoding;
     }
 
     const sig_len = reader.readByte() catch return Error.InvalidEncoding;
     if (sig_len + 2 != der.len) {
-        std.debug.print("sig_len: {d}, der.len: {d}\n", .{ sig_len, der.len });
         return Error.InvalidEncoding;
     }
 

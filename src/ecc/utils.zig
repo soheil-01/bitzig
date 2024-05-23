@@ -58,7 +58,14 @@ pub fn encode_base58(dest: []u8, source: []const u8) usize {
     return i;
 }
 
-pub fn ripemd160(msg: [:0]const u8) [20]u8 {
+pub fn hash160(msg: []const u8) [20]u8 {
+    var sha256_msg: [32]u8 = undefined;
+    Sha256.hash(msg, &sha256_msg, .{});
+
+    return ripemd160(sha256_msg);
+}
+
+pub fn ripemd160(msg: [32]u8) [20]u8 {
     var hash: [20]u8 = undefined;
     c.ripemd160(&msg, msg.len, &hash);
 
