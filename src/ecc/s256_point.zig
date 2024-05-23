@@ -64,7 +64,7 @@ pub fn rmul(self: S256Point, coefficient: u256) S256Point {
 }
 
 pub fn verify(self: S256Point, z: u256, sig: Signature) bool {
-    const s_inv = utils.mod_pow(sig.s, n - 2, n);
+    const s_inv = utils.modPow(sig.s, n - 2, n);
 
     const u: u256 = blk: {
         var tmp: u512 = z;
@@ -131,7 +131,7 @@ pub fn fromSec(s: []const u8) !S256Point {
 
             // y ** 2 = x ** 3 + 7
             const y_squared = x.pow(3).add(try initS256Field(b));
-            const y = utils.mod_pow(y_squared.num, (p + 1) / 4, p);
+            const y = utils.modPow(y_squared.num, (p + 1) / 4, p);
 
             var even_y: u256 = undefined;
             var odd_y: u256 = undefined;
@@ -162,13 +162,7 @@ pub fn address(self: S256Point, dest: []u8, compressed: bool, testnet: bool) usi
     hash160[1..].* = utils.hash160(sec);
     hash160[0] = if (testnet) 0x6f else 0x00;
 
-    var sha256_1: [32]u8 = undefined;
-    Sha256.hash(&hash160, &sha256_1, .{});
-
-    var sha256_2: [32]u8 = undefined;
-    Sha256.hash(&sha256_1, &sha256_2, .{});
-
-    return utils.encode_base58(dest, hash160 ++ sha256_2[0..4]);
+    return utils.encodeBase58Checksum(dest, hash160.len, hash160);
 }
 
 const testing = std.testing;

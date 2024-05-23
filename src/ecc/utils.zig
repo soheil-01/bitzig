@@ -6,7 +6,7 @@ const c = @cImport({
 const assert = std.debug.assert;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 
-pub fn mod_pow(a: u256, b: u256, mod: u256) u256 {
+pub fn modPow(a: u256, b: u256, mod: u256) u256 {
     var base = a;
     var exponent = b;
 
@@ -27,7 +27,7 @@ pub fn mod_pow(a: u256, b: u256, mod: u256) u256 {
     return result;
 }
 
-pub fn encode_base58(dest: []u8, source: []const u8) usize {
+pub fn encodeBase58(dest: []u8, source: []const u8) usize {
     assert(source.len <= 128);
     const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -56,6 +56,16 @@ pub fn encode_base58(dest: []u8, source: []const u8) usize {
     }
 
     return i;
+}
+
+pub fn encodeBase58Checksum(dest: []u8, comptime source_len: usize, source: [source_len]u8) usize {
+    var sha256_1: [32]u8 = undefined;
+    Sha256.hash(&source, &sha256_1, .{});
+
+    var sha256_2: [32]u8 = undefined;
+    Sha256.hash(&sha256_1, &sha256_2, .{});
+
+    return encodeBase58(dest, source ++ sha256_2[0..4]);
 }
 
 pub fn hash160(msg: []const u8) [20]u8 {

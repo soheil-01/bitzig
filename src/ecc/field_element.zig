@@ -79,7 +79,7 @@ pub fn pow(a: FieldElement, b: u256) FieldElement {
     var exponent = b;
     exponent = @mod(exponent, a.prime - 1);
 
-    const num = utils.mod_pow(a.num, exponent, a.prime);
+    const num = utils.modPow(a.num, exponent, a.prime);
 
     return FieldElement{ .num = num, .prime = a.prime };
 }
