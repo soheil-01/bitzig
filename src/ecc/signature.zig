@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("../utils.zig");
 
 const Signature = @This();
 
@@ -21,11 +22,8 @@ pub fn toDer(self: Signature, buf: *[der_encoded_max_length]u8) []u8 {
     var fb = std.io.fixedBufferStream(buf);
     const w = fb.writer();
 
-    var r_bytes: [32]u8 = undefined;
-    std.mem.writeInt(u256, &r_bytes, self.r, .big);
-
-    var s_bytes: [32]u8 = undefined;
-    std.mem.writeInt(u256, &s_bytes, self.s, .big);
+    const r_bytes = utils.encodeInt(u256, self.r, .big);
+    const s_bytes: [32]u8 = utils.encodeInt(u256, self.s, .big);
 
     const r_len = 32 + (r_bytes[0] >> 7);
     const s_len = 32 + (s_bytes[0] >> 7);
@@ -72,7 +70,7 @@ pub fn fromDer(der: []const u8) !Signature {
     return init(r, s);
 }
 
-fn readDerInt(reader: anytype) !u256 {
+fn readDerInt(reader: std.io.AnyReader) !u256 {
     const marker = reader.readByte() catch return Error.InvalidEncoding;
     if (marker != 0x02) {
         return Error.InvalidEncoding;

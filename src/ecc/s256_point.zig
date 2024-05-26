@@ -1,6 +1,6 @@
 const std = @import("std");
 const constants = @import("constants.zig");
-const utils = @import("utils.zig");
+const utils = @import("../utils.zig");
 const FieldElement = @import("field_element.zig");
 const ECPoint = @import("ec_point.zig");
 const Signature = @import("signature.zig");
@@ -88,8 +88,8 @@ pub fn toUncompressedSec(self: S256Point) [65]u8 {
 
     var out: [65]u8 = undefined;
     out[0] = 4;
-    std.mem.writeInt(u256, out[1..33], self.inner.x.?.num, .big);
-    std.mem.writeInt(u256, out[33..65], self.inner.y.?.num, .big);
+    out[1..33].* = utils.encodeInt(u256, self.inner.x.?.num, .big);
+    out[33..65].* = utils.encodeInt(u256, self.inner.y.?.num, .big);
 
     return out;
 }
@@ -99,7 +99,7 @@ pub fn toCompressedSec(self: S256Point) [33]u8 {
 
     var out: [33]u8 = undefined;
     out[0] = if (self.inner.y.?.isOdd()) 3 else 2;
-    std.mem.writeInt(u256, out[1..], self.inner.x.?.num, .big);
+    out[1..].* = utils.encodeInt(u256, self.inner.x.?.num, .big);
 
     return out;
 }

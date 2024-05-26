@@ -1,6 +1,6 @@
 const std = @import("std");
 const constants = @import("constants.zig");
-const utils = @import("utils.zig");
+const utils = @import("../utils.zig");
 const S256Point = @import("s256_point.zig");
 const Signature = @import("signature.zig");
 
@@ -52,11 +52,9 @@ pub fn deterministicK(self: PrivateKey, z: u256) u256 {
         z_var -= n;
     }
 
-    var z_bytes: [32]u8 = undefined;
-    std.mem.writeInt(u256, &z_bytes, z_var, .big);
+    const z_bytes = utils.encodeInt(u256, z_var, .big);
 
-    var secret_bytes: [32]u8 = undefined;
-    std.mem.writeInt(u256, &secret_bytes, self.secret, .big);
+    const secret_bytes = utils.encodeInt(u256, self.secret, .big);
 
     var msg = v ++ [_]u8{0} ++ secret_bytes ++ z_bytes;
     HmacSha256.create(&k, &msg, &k);
@@ -82,17 +80,14 @@ pub fn deterministicK(self: PrivateKey, z: u256) u256 {
 }
 
 pub fn toUncompressedWif(self: PrivateKey, dest: []u8, testnet: bool) usize {
-    var secret_bytes: [32]u8 = undefined;
-    std.mem.writeInt(u256, &secret_bytes, self.secret, .big);
-
+    const secret_bytes = utils.encodeInt(u256, self.secret, .big);
     const prefix: u8 = if (testnet) 0xef else 0x80;
 
     return utils.encodeBase58Checksum(dest, secret_bytes.len + 1, [_]u8{prefix} ++ secret_bytes);
 }
 
 pub fn toCompressedWif(self: PrivateKey, dest: []u8, testnet: bool) usize {
-    var secret_bytes: [32]u8 = undefined;
-    std.mem.writeInt(u256, &secret_bytes, self.secret, .big);
+    const secret_bytes = utils.encodeInt(u256, self.secret, .big);
 
     const prefix: u8 = if (testnet) 0xef else 0x80;
     const suffix = 0x01;

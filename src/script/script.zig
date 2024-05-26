@@ -1,0 +1,1 @@
+const Script = @This();
