@@ -21,6 +21,8 @@ pub fn toString(self: TransactionInput, allocator: std.mem.Allocator) ![]u8 {
     return std.fmt.allocPrint(allocator, "{s}:{d}", .{ std.fmt.fmtSliceHexLower(self.prev_tx), self.prev_index });
 }
 
+// TODO: Since the cache is currentlly tied to the lifetime of the TransactionFetcher instance,
+// it becomes ineffective if only used for fetching a single transaction.
 pub fn fetchTransaction(self: TransactionInput, testnet: bool, fresh: bool) !Transaction {
     var transaction_fetcher = TransactionFetcher.init(self.allocator);
     defer transaction_fetcher.deinit();

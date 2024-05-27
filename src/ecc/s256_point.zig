@@ -2,7 +2,7 @@ const std = @import("std");
 const constants = @import("constants.zig");
 const utils = @import("../utils.zig");
 const FieldElement = @import("field_element.zig");
-const ECPoint = @import("ec_point.zig");
+const Point = @import("point.zig");
 const Signature = @import("signature.zig");
 
 const assert = std.debug.assert;
@@ -20,7 +20,7 @@ const gy = constants.secp256k1_gy;
 pub const G = S256Point.init(gx, gy) catch unreachable;
 pub const Error = error{InvalidEncoding};
 
-inner: ECPoint,
+inner: Point,
 
 fn initS256Field(num: u256) !FieldElement {
     return FieldElement.init(num, p);
@@ -32,10 +32,10 @@ pub fn init(x: ?u256, y: ?u256) !S256Point {
 
     if (x == null) {
         assert(x == null and y == null);
-        return .{ .inner = try ECPoint.init(null, null, a_fe, b_fe) };
+        return .{ .inner = try Point.init(null, null, a_fe, b_fe) };
     }
 
-    return .{ .inner = try ECPoint.init(try initS256Field(x.?), try initS256Field(y.?), a_fe, b_fe) };
+    return .{ .inner = try Point.init(try initS256Field(x.?), try initS256Field(y.?), a_fe, b_fe) };
 }
 
 pub fn toString(self: S256Point, allocator: std.mem.Allocator) ![]u8 {

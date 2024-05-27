@@ -7,7 +7,6 @@ const TransactionFetcher = @This();
 const Error = error{ HttpFailed, NotTheSameTransactionId };
 
 allocator: std.mem.Allocator,
-//TODO: is the cache efficive?
 cache: std.StringHashMap([]const u8),
 buf: std.ArrayList(u8),
 
