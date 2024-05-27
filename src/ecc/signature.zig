@@ -70,7 +70,7 @@ pub fn fromDer(der: []const u8) !Signature {
     return init(r, s);
 }
 
-fn readDerInt(reader: std.io.AnyReader) !u256 {
+fn readDerInt(reader: anytype) !u256 {
     const marker = reader.readByte() catch return Error.InvalidEncoding;
     if (marker != 0x02) {
         return Error.InvalidEncoding;

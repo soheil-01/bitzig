@@ -16,6 +16,10 @@ pub const transaction = struct {
     pub const TransactionFetcher = @import("transaction/transaction_fetcher.zig");
 };
 
+pub const script = struct {
+    pub const Script = @import("script/script.zig");
+};
+
 test {
     @import("std").testing.refAllDeclsRecursive(@This());
 }

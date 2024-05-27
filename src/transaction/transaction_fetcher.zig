@@ -27,9 +27,13 @@ pub fn fetchAndParse(self: *TransactionFetcher, tx_id: []const u8, testnet: bool
 
     var transaction: Transaction = undefined;
     if (transaction_bytes[4] == 0) {
-        const raw_transaction = try std.mem.concat(self.allocator, u8, .{ transaction_bytes[0..4], transaction_bytes[6..] });
+        const raw_transaction = try std.mem.concat(self.allocator, u8, &.{ transaction_bytes[0..4], transaction_bytes[6..] });
         transaction = try Transaction.parse(self.allocator, raw_transaction, testnet);
-        transaction.locktime = std.mem.readInt(u32, raw_transaction[raw_transaction.len - 4 ..], .little);
+
+        var locktime_bytes: [4]u8 = undefined;
+        std.mem.copyForwards(u8, &locktime_bytes, raw_transaction[raw_transaction.len - 4 ..]);
+
+        transaction.locktime = std.mem.readInt(u32, &locktime_bytes, .little);
     } else {
         transaction = try Transaction.parse(self.allocator, transaction_bytes, testnet);
     }

@@ -55,7 +55,7 @@ pub fn encodeBase58(dest: []u8, source: []const u8) []u8 {
         } else break;
     }
 
-    return source[i..];
+    return dest[i..];
 }
 
 pub fn encodeBase58Checksum(dest: []u8, comptime source_len: usize, source: [source_len]u8) []u8 {
@@ -88,7 +88,7 @@ pub fn ripemd160(msg: [32]u8) [20]u8 {
     return hash;
 }
 
-pub fn readVarintFromReader(reader: std.io.AnyReader) !u64 {
+pub fn readVarintFromReader(reader: anytype) !u64 {
     const i = try reader.readByte();
 
     switch (i) {
@@ -109,7 +109,7 @@ pub fn readVarintFromReader(reader: std.io.AnyReader) !u64 {
         0xff => {
             var buf: [8]u8 = undefined;
             try reader.readNoEof(&buf);
-            const int = std.mem.readInt(u32, &buf, .little);
+            const int = std.mem.readInt(u64, &buf, .little);
 
             return int;
         },
@@ -127,22 +127,25 @@ pub fn encodeVarint(allocator: std.mem.Allocator, int: u64) ![]u8 {
     } else if (int < 0x10000) {
         var buf = try allocator.alloc(u8, 3);
         buf[0] = 0xfd;
-        buf[1..].* = encodeInt(u16, @intCast(int), .little);
+        std.mem.writeInt(u16, buf[1..3], @intCast(int), .little);
+        return buf;
     } else if (int < 0x100000000) {
         var buf = try allocator.alloc(u8, 5);
         buf[0] = 0xfe;
-        buf[1..].* = encodeInt(u32, @intCast(int), .little);
+        std.mem.writeInt(u32, buf[1..5], @intCast(int), .little);
+        return buf;
     } else if (int < 0x10000000000000000) {
         var buf = try allocator.alloc(u8, 9);
         buf[0] = 0xff;
-        buf[1..].* = encodeInt(u64, @intCast(int), .little);
+        std.mem.writeInt(u64, buf[1..9], int, .little);
+        return buf;
     }
 }
 
-pub fn readIntFromReader(comptime T: type, reader: std.io.AnyReader, endian: std.builtin.Endian) !T {
+pub fn readIntFromReader(comptime T: type, reader: anytype, endian: std.builtin.Endian) !T {
     var int_bytes: [@divExact(@typeInfo(T).Int.bits, 8)]u8 = undefined;
     try reader.readNoEof(&int_bytes);
-    const int = std.mem.readInt(T, int_bytes, endian);
+    const int = std.mem.readInt(T, &int_bytes, endian);
 
     return int;
 }
