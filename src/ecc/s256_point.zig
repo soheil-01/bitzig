@@ -155,7 +155,7 @@ pub fn fromSec(s: []const u8) !S256Point {
     }
 }
 
-pub fn address(self: S256Point, dest: []u8, compressed: bool, testnet: bool) usize {
+pub fn address(self: S256Point, dest: []u8, compressed: bool, testnet: bool) []u8 {
     const sec: []const u8 = if (compressed) &self.toCompressedSec() else &self.toUncompressedSec();
 
     var hash160: [21]u8 = undefined;
@@ -245,13 +245,12 @@ test "S256Point: address" {
         const testnet_address = "mieaqB68xDCtbUBYFoUNcmZNwk74xcBfTP";
         const point = G.rmul(secret);
 
-        var addr: [34]u8 = undefined;
-        var i = point.address(&addr, true, false);
-        try testing.expectEqualStrings(mainnet_address, addr[i..]);
+        var buf: [34]u8 = undefined;
+        var addr = point.address(&buf, true, false);
+        try testing.expectEqualStrings(mainnet_address, addr);
 
-        addr = undefined;
-        i = point.address(&addr, true, true);
-        try testing.expectEqualStrings(testnet_address, addr[i..]);
+        addr = point.address(&buf, true, true);
+        try testing.expectEqualStrings(testnet_address, addr);
     }
 
     {
@@ -260,13 +259,12 @@ test "S256Point: address" {
         const testnet_address = "mfx3y63A7TfTtXKkv7Y6QzsPFY6QCBCXiP";
         const point = G.rmul(secret);
 
-        var addr: [34]u8 = undefined;
-        var i = point.address(&addr, false, false);
-        try testing.expectEqualStrings(mainnet_address, addr[i..]);
+        var buf: [34]u8 = undefined;
+        var addr = point.address(&buf, false, false);
+        try testing.expectEqualStrings(mainnet_address, addr);
 
-        addr = undefined;
-        i = point.address(&addr, false, true);
-        try testing.expectEqualStrings(testnet_address, addr[i..]);
+        addr = point.address(&buf, false, true);
+        try testing.expectEqualStrings(testnet_address, addr);
     }
 
     {
@@ -275,12 +273,11 @@ test "S256Point: address" {
         const testnet_address = "mgY3bVusRUL6ZB2Ss999CSrGVbdRwVpM8s";
         const point = G.rmul(secret);
 
-        var addr: [34]u8 = undefined;
-        var i = point.address(&addr, false, false);
-        try testing.expectEqualStrings(mainnet_address, addr[i..]);
+        var buf: [34]u8 = undefined;
+        var addr = point.address(&buf, false, false);
+        try testing.expectEqualStrings(mainnet_address, addr);
 
-        addr = undefined;
-        i = point.address(&addr, false, true);
-        try testing.expectEqualStrings(testnet_address, addr[i..]);
+        addr = point.address(&buf, false, true);
+        try testing.expectEqualStrings(testnet_address, addr);
     }
 }

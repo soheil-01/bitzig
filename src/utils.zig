@@ -27,7 +27,7 @@ pub fn modPow(a: u256, b: u256, mod: u256) u256 {
     return result;
 }
 
-pub fn encodeBase58(dest: []u8, source: []const u8) usize {
+pub fn encodeBase58(dest: []u8, source: []const u8) []u8 {
     assert(source.len <= 128);
     const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -55,10 +55,10 @@ pub fn encodeBase58(dest: []u8, source: []const u8) usize {
         } else break;
     }
 
-    return i;
+    return source[i..];
 }
 
-pub fn encodeBase58Checksum(dest: []u8, comptime source_len: usize, source: [source_len]u8) usize {
+pub fn encodeBase58Checksum(dest: []u8, comptime source_len: usize, source: [source_len]u8) []u8 {
     const hash256_source = hash256(&source);
 
     return encodeBase58(dest, source ++ hash256_source[0..4]);
@@ -88,7 +88,7 @@ pub fn ripemd160(msg: [32]u8) [20]u8 {
     return hash;
 }
 
-pub fn readVarint(reader: std.io.AnyReader) !u64 {
+pub fn readVarintFromReader(reader: std.io.AnyReader) !u64 {
     const i = try reader.readByte();
 
     switch (i) {
@@ -139,7 +139,7 @@ pub fn encodeVarint(allocator: std.mem.Allocator, int: u64) ![]u8 {
     }
 }
 
-pub fn readInt(comptime T: type, reader: std.io.AnyReader, endian: std.builtin.Endian) !T {
+pub fn readIntFromReader(comptime T: type, reader: std.io.AnyReader, endian: std.builtin.Endian) !T {
     var int_bytes: [@divExact(@typeInfo(T).Int.bits, 8)]u8 = undefined;
     try reader.readNoEof(&int_bytes);
     const int = std.mem.readInt(T, int_bytes, endian);

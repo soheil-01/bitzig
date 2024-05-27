@@ -56,9 +56,9 @@ pub fn parse(reader: std.io.AnyReader) !TransactionInput {
     reader.readNoEof(&prev_tx) catch Error.InvalidEncoding;
     std.mem.reverse(u8, &prev_tx);
 
-    const prev_index = utils.readInt(u32, reader, .little) catch Error.InvalidEncoding;
+    const prev_index = utils.readIntFromReader(u32, reader, .little) catch Error.InvalidEncoding;
     const script = Script.parse(reader);
-    const sequence = utils.readInt(u32, reader, .little) catch Error.InvalidEncoding;
+    const sequence = utils.readIntFromReader(u32, reader, .little) catch Error.InvalidEncoding;
 
     return init(prev_tx, prev_index, script, sequence);
 }

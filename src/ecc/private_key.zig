@@ -79,14 +79,14 @@ pub fn deterministicK(self: PrivateKey, z: u256) u256 {
     }
 }
 
-pub fn toUncompressedWif(self: PrivateKey, dest: []u8, testnet: bool) usize {
+pub fn toUncompressedWif(self: PrivateKey, dest: []u8, testnet: bool) []u8 {
     const secret_bytes = utils.encodeInt(u256, self.secret, .big);
     const prefix: u8 = if (testnet) 0xef else 0x80;
 
     return utils.encodeBase58Checksum(dest, secret_bytes.len + 1, [_]u8{prefix} ++ secret_bytes);
 }
 
-pub fn toCompressedWif(self: PrivateKey, dest: []u8, testnet: bool) usize {
+pub fn toCompressedWif(self: PrivateKey, dest: []u8, testnet: bool) []u8 {
     const secret_bytes = utils.encodeInt(u256, self.secret, .big);
 
     const prefix: u8 = if (testnet) 0xef else 0x80;
@@ -114,31 +114,31 @@ test "PrivateKey: wif" {
         const secret: u256 = @intCast(std.math.pow(u257, 2, 256) - std.math.pow(u256, 2, 199));
         const pk = PrivateKey.init(secret);
         const expected = "L5oLkpV3aqBJ4BgssVAsax1iRa77G5CVYnv9adQ6Z87te7TyUdSC";
-        const i = pk.toCompressedWif(&wif_buffer, false);
-        try testing.expectEqualStrings(expected, wif_buffer[i..]);
+        const wif = pk.toCompressedWif(&wif_buffer, false);
+        try testing.expectEqualStrings(expected, wif);
     }
 
     {
         const secret: u256 = @intCast(std.math.pow(u257, 2, 256) - std.math.pow(u256, 2, 201));
         const pk = PrivateKey.init(secret);
         const expected = "93XfLeifX7Jx7n7ELGMAf1SUR6f9kgQs8Xke8WStMwUtrDucMzn";
-        const i = pk.toUncompressedWif(&wif_buffer, true);
-        try testing.expectEqualStrings(expected, wif_buffer[i..]);
+        const wif = pk.toUncompressedWif(&wif_buffer, true);
+        try testing.expectEqualStrings(expected, wif);
     }
 
     {
         const secret: u256 = 0x0dba685b4511dbd3d368e5c4358a1277de9486447af7b3604a69b8d9d8b7889d;
         const pk = PrivateKey.init(secret);
         const expected = "5HvLFPDVgFZRK9cd4C5jcWki5Skz6fmKqi1GQJf5ZoMofid2Dty";
-        const i = pk.toUncompressedWif(&wif_buffer, false);
-        try testing.expectEqualStrings(expected, wif_buffer[i..]);
+        const wif = pk.toUncompressedWif(&wif_buffer, false);
+        try testing.expectEqualStrings(expected, wif);
     }
 
     {
         const secret: u256 = 0x1cca23de92fd1862fb5b76e5f4f50eb082165e5191e116c18ed1a6b24be6a53f;
         const pk = PrivateKey.init(secret);
         const expected = "cNYfWuhDpbNM1JWc3c6JTrtrFVxU4AGhUKgw5f93NP2QaBqmxKkg";
-        const i = pk.toCompressedWif(&wif_buffer, true);
-        try testing.expectEqualStrings(expected, wif_buffer[i..]);
+        const wif = pk.toCompressedWif(&wif_buffer, true);
+        try testing.expectEqualStrings(expected, wif);
     }
 }

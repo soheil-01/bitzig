@@ -31,7 +31,7 @@ pub fn serialize(self: TransactionOutput, allocator: std.mem.Allocator) ![]u8 {
 }
 
 pub fn parse(reader: std.io.AnyReader) !TransactionOutput {
-    const amount = utils.readInt(u64, reader, .little) catch return Error.InvalidEncoding;
+    const amount = utils.readIntFromReader(u64, reader, .little) catch return Error.InvalidEncoding;
     const script_pubkey = Script.parse(reader);
     return init(amount, script_pubkey);
 }

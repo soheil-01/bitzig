@@ -94,21 +94,21 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8, testnet: bool) !T
     const fb = std.io.fixedBufferStream(source);
     const reader = fb.reader();
 
-    const version = utils.readInt(u32, reader, .little) catch return Error.InvalidEncoding;
+    const version = utils.readIntFromReader(u32, reader, .little) catch return Error.InvalidEncoding;
 
-    const num_inputs = utils.readVarint(reader) catch return Error.InvalidEncoding;
+    const num_inputs = utils.readVarintFromReader(reader) catch return Error.InvalidEncoding;
     const inputs = try allocator.alloc(TransactionInput, num_inputs);
     for (0..num_inputs) |i| {
         inputs[i] = TransactionInput.parse(reader);
     }
 
-    const num_outputs = utils.readVarint(reader) catch return Error.InvalidEncoding;
+    const num_outputs = utils.readVarintFromReader(reader) catch return Error.InvalidEncoding;
     const outputs = try allocator.alloc(TransactionOutput, num_outputs);
     for (0..num_outputs) |i| {
         outputs[i] = TransactionOutput.parse(reader);
     }
 
-    const locktime = utils.readInt(u32, reader, .little) catch return Error.InvalidEncoding;
+    const locktime = utils.readIntFromReader(u32, reader, .little) catch return Error.InvalidEncoding;
 
     return init(allocator, version, inputs, outputs, locktime, testnet);
 }
