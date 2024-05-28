@@ -15,6 +15,9 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    const opts = .{ .target = target, .optimize = optimize };
+    const json_mod = b.dependency("json", opts).module("json");
+
     const ripemd160 = b.addStaticLibrary(.{ .name = "ripemd160", .optimize = .Debug, .target = target });
     ripemd160.addCSourceFiles(.{
         .files = &.{ "lib/ripemd160.c", "lib/memzero.c" },
@@ -29,6 +32,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    lib.root_module.addImport("json", json_mod);
     lib.linkLibrary(ripemd160);
     lib.addIncludePath(b.path("lib"));
 
@@ -43,6 +47,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    exe.root_module.addImport("json", json_mod);
     exe.linkLibrary(ripemd160);
     exe.addIncludePath(b.path("lib"));
 
@@ -81,6 +86,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    tests.root_module.addImport("json", json_mod);
     tests.linkLibrary(ripemd160);
     tests.addIncludePath(b.path("lib"));
     const run_tests = b.addRunArtifact(tests);

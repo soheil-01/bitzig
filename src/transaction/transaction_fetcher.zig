@@ -1,4 +1,5 @@
 const std = @import("std");
+const json = @import("json");
 const utils = @import("../utils.zig");
 const Transaction = @import("transaction.zig");
 
@@ -18,12 +19,22 @@ pub fn init(allocator: std.mem.Allocator) TransactionFetcher {
 }
 
 pub fn deinit(self: *TransactionFetcher) void {
+    var iter = self.cache.iterator();
+    while (iter.next()) |entry| {
+        self.allocator.free(entry.key_ptr.*);
+        self.allocator.free(entry.value_ptr.*);
+    }
+
     self.cache.deinit();
     self.buf.deinit();
 }
 
 pub fn fetchAndParse(self: *TransactionFetcher, tx_id: []const u8, testnet: bool, fresh: bool) !Transaction {
-    const transaction_bytes = try self.fetch(tx_id, testnet, fresh);
+    const transaction_hex = try self.fetch(tx_id, testnet, fresh);
+
+    const transaction_bytes = try self.allocator.alloc(u8, transaction_hex.len / 2);
+    defer self.allocator.free(transaction_bytes);
+    _ = try std.fmt.hexToBytes(transaction_bytes, transaction_hex);
 
     var transaction: Transaction = undefined;
     if (transaction_bytes[4] == 0) {
@@ -75,11 +86,32 @@ pub fn fetch(self: *TransactionFetcher, tx_id: []const u8, testnet: bool, fresh:
     }
 
     const transaction_hex = response_parsed.value.result.?;
-    const transaction_bytes = try self.allocator.alloc(u8, transaction_hex.len / 2);
-    defer self.allocator.free(transaction_bytes);
-    _ = try std.fmt.hexToBytes(transaction_bytes, transaction_hex);
 
-    try self.cache.put(tx_id, transaction_bytes);
+    try self.put(tx_id, transaction_hex);
 
-    return transaction_bytes;
+    return transaction_hex;
+}
+
+pub fn put(self: *TransactionFetcher, tx_id: []const u8, tx_hex: []const u8) !void {
+    try self.cache.put(try self.allocator.dupe(u8, tx_id), try self.allocator.dupe(u8, tx_hex));
+}
+
+pub fn loadCache(self: *TransactionFetcher, file_path: []const u8) !void {
+    const file = try std.fs.cwd().readFileAlloc(self.allocator, file_path, std.math.maxInt(usize));
+    defer self.allocator.free(file);
+
+    const file_json = try json.fromSlice(self.allocator, std.StringHashMap([]const u8), file);
+    defer file_json.deinit();
+
+    var iter = file_json.value.iterator();
+    while (iter.next()) |entry| {
+        try self.put(entry.key_ptr.*, entry.value_ptr.*);
+    }
+}
+
+pub fn dumpCache(self: TransactionFetcher, file_path: []const u8) !void {
+    const json_string = try json.toSlice(self.allocator, self.cache);
+    defer self.allocator.free(json_string);
+
+    try std.fs.cwd().writeFile2(.{ .sub_path = file_path, .data = json_string });
 }
