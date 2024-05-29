@@ -156,3 +156,8 @@ pub fn encodeInt(comptime T: type, int: T, endian: std.builtin.Endian) [@divExac
 
     return int_bytes;
 }
+
+pub fn hexToBytes(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
+    const bytes = try allocator.alloc(u8, source.len / 2);
+    return std.fmt.hexToBytes(bytes, source);
+}

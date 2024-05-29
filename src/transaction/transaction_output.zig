@@ -14,6 +14,10 @@ pub fn init(allocator: std.mem.Allocator, amount: u64, script_pubkey: Script) Tr
     return .{ .allocator = allocator, .amount = amount, .script_pubkey = script_pubkey };
 }
 
+pub fn deinit(self: TransactionOutput) void {
+    self.script_pubkey.deinit();
+}
+
 pub fn toString(self: TransactionOutput, allocator: std.mem.Allocator) ![]u8 {
     const script_pubkey_string = try self.script_pubkey.toString(allocator);
     defer allocator.free(script_pubkey_string);
@@ -27,7 +31,9 @@ pub fn serialize(self: TransactionOutput, allocator: std.mem.Allocator) ![]u8 {
     const amount_bytes = utils.encodeInt(u64, self.amount, .little);
     try result.appendSlice(&amount_bytes);
 
-    try result.appendSlice(try self.script_pubkey.serialize(allocator));
+    const serialized_script_pubkey = try self.script_pubkey.serialize(allocator);
+    defer allocator.free(serialized_script_pubkey);
+    try result.appendSlice(serialized_script_pubkey);
 
     return result.toOwnedSlice();
 }

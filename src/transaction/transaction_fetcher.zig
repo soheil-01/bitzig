@@ -29,35 +29,40 @@ pub fn deinit(self: *TransactionFetcher) void {
     self.buf.deinit();
 }
 
-pub fn fetchAndParse(self: *TransactionFetcher, tx_id: []const u8, testnet: bool, fresh: bool) !Transaction {
-    const transaction_hex = try self.fetch(tx_id, testnet, fresh);
+pub fn fetchAndParse(self: *TransactionFetcher, allocator: std.mem.Allocator, tx_id: []const u8, testnet: bool, fresh: bool) !Transaction {
+    const transaction_hex = try self.fetchTransactionHex(tx_id, testnet, fresh);
 
-    const transaction_bytes = try self.allocator.alloc(u8, transaction_hex.len / 2);
+    const transaction_bytes = try utils.hexToBytes(self.allocator, transaction_hex);
     defer self.allocator.free(transaction_bytes);
-    _ = try std.fmt.hexToBytes(transaction_bytes, transaction_hex);
 
     var transaction: Transaction = undefined;
+    errdefer transaction.deinit();
+
     if (transaction_bytes[4] == 0) {
         const raw_transaction = try std.mem.concat(self.allocator, u8, &.{ transaction_bytes[0..4], transaction_bytes[6..] });
-        transaction = try Transaction.parse(self.allocator, raw_transaction, testnet);
+        defer self.allocator.free(raw_transaction);
+
+        transaction = try Transaction.parse(allocator, raw_transaction, testnet);
 
         var locktime_bytes: [4]u8 = undefined;
         std.mem.copyForwards(u8, &locktime_bytes, raw_transaction[raw_transaction.len - 4 ..]);
 
         transaction.locktime = std.mem.readInt(u32, &locktime_bytes, .little);
     } else {
-        transaction = try Transaction.parse(self.allocator, transaction_bytes, testnet);
+        transaction = try Transaction.parse(allocator, transaction_bytes, testnet);
     }
 
     const fetched_tx_id = try transaction.id(self.allocator);
-    if (std.mem.eql(u8, tx_id, fetched_tx_id)) {
+    defer self.allocator.free(fetched_tx_id);
+
+    if (!std.mem.eql(u8, tx_id, fetched_tx_id)) {
         return Error.NotTheSameTransactionId;
     }
 
     return transaction;
 }
 
-pub fn fetch(self: *TransactionFetcher, tx_id: []const u8, testnet: bool, fresh: bool) ![]const u8 {
+pub fn fetchTransactionHex(self: *TransactionFetcher, tx_id: []const u8, testnet: bool, fresh: bool) ![]const u8 {
     if (!fresh and self.cache.contains(tx_id)) {
         return self.cache.get(tx_id).?;
     }

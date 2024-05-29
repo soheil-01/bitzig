@@ -14,25 +14,27 @@ prev_index: u32,
 script_sig: Script,
 sequence: u32,
 
-pub fn init(allocator: std.mem.Allocator, prev_tx: [32]u8, prev_index: u32, script_sig: Script, sequence: ?u32) TransactionInput {
-    return .{ .allocator = allocator, .prev_tx = prev_tx, .prev_index = prev_index, .script_sig = script_sig, .sequence = sequence orelse 0xffffffff };
+pub fn init(allocator: std.mem.Allocator, prev_tx: [32]u8, prev_index: u32, script_sig: ?Script, sequence: ?u32) TransactionInput {
+    return .{ .allocator = allocator, .prev_tx = prev_tx, .prev_index = prev_index, .script_sig = script_sig orelse Script.init(allocator, &[_]u8{}), .sequence = sequence orelse 0xffffffff };
+}
+
+pub fn deinit(self: TransactionInput) void {
+    self.script_sig.deinit();
 }
 
 pub fn toString(self: TransactionInput, allocator: std.mem.Allocator) ![]u8 {
     return std.fmt.allocPrint(allocator, "{s}:{d}", .{ std.fmt.fmtSliceHexLower(&self.prev_tx), self.prev_index });
 }
 
-// TODO: Since the cache is currentlly tied to the lifetime of the TransactionFetcher instance,
-// it becomes ineffective if only used for fetching a single transaction.
-pub fn fetchTransaction(self: TransactionInput, testnet: bool, fresh: bool) !Transaction {
-    var transaction_fetcher = TransactionFetcher.init(self.allocator);
-    defer transaction_fetcher.deinit();
-
-    return transaction_fetcher.fetchAndParse(&self.prev_tx, testnet, fresh);
+pub fn fetchTransaction(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool, fresh: bool) !Transaction {
+    const tx_id = std.fmt.bytesToHex(self.prev_tx, .lower);
+    return fetcher.fetchAndParse(self.allocator, &tx_id, testnet, fresh);
 }
 
-pub fn value(self: TransactionInput, testnet: bool, fresh: bool) !u64 {
-    const transaction = try self.fetchTransaction(testnet, fresh);
+pub fn value(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool, fresh: bool) !u64 {
+    const transaction = try self.fetchTransaction(fetcher, testnet, fresh);
+    defer transaction.deinit();
+
     return transaction.tx_outs[self.prev_index].amount;
 }
 
@@ -46,7 +48,9 @@ pub fn serialize(self: TransactionInput, allocator: std.mem.Allocator) ![]u8 {
     const prev_index_bytes = utils.encodeInt(u32, self.prev_index, .little);
     try result.appendSlice(&prev_index_bytes);
 
-    try result.appendSlice(try self.script_sig.serialize(allocator));
+    const serialized_script_sig = try self.script_sig.serialize(allocator);
+    defer allocator.free(serialized_script_sig);
+    try result.appendSlice(serialized_script_sig);
 
     const sequence_bytes = utils.encodeInt(u32, self.sequence, .little);
     try result.appendSlice(&sequence_bytes);

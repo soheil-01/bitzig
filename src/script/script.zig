@@ -38,6 +38,7 @@ pub fn toString(_: Script, allocator: std.mem.Allocator) ![]u8 {
 pub fn serialize(self: Script, allocator: std.mem.Allocator) ![]u8 {
     var result = std.ArrayList(u8).init(allocator);
     const script_len = try utils.encodeVarint(allocator, self.bytes.len);
+    defer allocator.free(script_len);
 
     try result.appendSlice(script_len);
     try result.appendSlice(self.bytes);
