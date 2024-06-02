@@ -41,7 +41,7 @@ fn opDup(self: Interpreter) !bool {
         return false;
     }
 
-    const last = try self.allocator.dupe(u8, &self.stack.getLast());
+    const last = try self.allocator.dupe(u8, self.stack.getLast());
     try self.stack.append(last);
 
     return true;
@@ -56,7 +56,7 @@ fn opHash256(self: Interpreter) !bool {
     defer self.allocator.free(last);
 
     const last_hash256 = try self.allocator.alloc(u8, 32);
-    last_hash256.* = utils.hash256(&last);
+    last_hash256[0..32].* = utils.hash256(&last);
 
     try self.stack.append(last_hash256);
 
@@ -72,7 +72,7 @@ fn opHash160(self: Interpreter) !bool {
     defer self.allocator.free(last);
 
     const last_hash160 = try self.allocator.alloc(u8, 20);
-    last_hash160.* = utils.hash160(&last);
+    last_hash160[0..20].* = utils.hash160(&last);
 
     try self.stack.append(last_hash160);
 
