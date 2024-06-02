@@ -9,6 +9,16 @@ const Error = error{ InvalidEncoding, TooLongCmd };
 const Cmd = union(enum) {
     opcode: Opcode,
     element: []const u8,
+
+    pub fn clone(self: Cmd, allocator: std.mem.Allocator) !Cmd {
+        switch (self) {
+            .opcode => return self,
+            .element => |element| {
+                const element_copy = try allocator.dupe(u8, element);
+                return .{ .element = element_copy };
+            },
+        }
+    }
 };
 
 allocator: std.mem.Allocator,
@@ -94,6 +104,21 @@ pub fn toString(self: Script, allocator: std.mem.Allocator) ![]u8 {
     }
 
     return result.toOwnedSlice();
+}
+
+pub fn add(self: Script, other: Script, allocator: std.mem.Allocator) !Script {
+    var cmds = std.ArrayList(Cmd).init(allocator);
+    errdefer cmds.deinit();
+
+    for (self.cmds) |cmd| {
+        try cmds.append(try cmd.clone(allocator));
+    }
+
+    for (other.cmds) |cmd| {
+        try cmds.append(try cmd.clone(allocator));
+    }
+
+    return cmds.toOwnedSlice();
 }
 
 pub fn rawSerialize(self: Script, allocator: std.mem.Allocator) ![]u8 {
