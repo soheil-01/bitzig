@@ -1,14 +1,21 @@
 const std = @import("std");
 const utils = @import("../utils.zig");
 const Opcode = @import("../interpreter/opcode.zig").Opcode;
+const Interpreter = @import("../interpreter/interpreter.zig");
 
 const Script = @This();
 
 const Error = error{ InvalidEncoding, TooLongCmd };
 
-const Cmd = union(enum) {
+pub const Cmd = union(enum) {
     opcode: Opcode,
     element: []const u8,
+
+    pub fn free(self: Cmd, allocator: std.mem.Allocator) void {
+        switch (self) {
+            .element => |element| allocator.free(element),
+        }
+    }
 
     pub fn clone(self: Cmd, allocator: std.mem.Allocator) !Cmd {
         switch (self) {
@@ -22,19 +29,19 @@ const Cmd = union(enum) {
 };
 
 allocator: std.mem.Allocator,
-cmds: []Cmd,
+cmds: std.ArrayList(Cmd),
 
-pub fn init(allocator: std.mem.Allocator, cmds: [][]const u8) Script {
-    return .{ .allocator = allocator, .cmds = cmds };
+pub fn init(allocator: std.mem.Allocator) Script {
+    return .{ .allocator = allocator, .cmds = std.ArrayList(Cmd).init(allocator) };
 }
 
 pub fn deinit(self: Script) void {
-    for (self.cmds) |cmd| {
+    for (self.cmds.items) |cmd| {
         if (cmd == .element) {
             self.allocator.free(cmd.element);
         }
     }
-    self.allocator.free(self.cmds);
+    self.cmds.deinit();
 }
 
 pub fn parse(allocator: std.mem.Allocator, source: []const u8) !Script {
@@ -46,7 +53,7 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8) !Script {
 
 pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !Script {
     const length = utils.readVarintFromReader(reader) catch return Error.InvalidEncoding;
-    const cmds = std.ArrayList([]const u8).init(allocator);
+    var cmds = std.ArrayList([]const u8).init(allocator);
     var count: usize = 0;
 
     while (count < length) {
@@ -80,7 +87,7 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !Script {
         return Error.InvalidEncoding;
     }
 
-    return init(allocator, try cmds.toOwnedSlice());
+    return .{ .allocator = allocator, .cmds = cmds };
 }
 
 pub fn toString(self: Script, allocator: std.mem.Allocator) ![]u8 {
@@ -106,6 +113,76 @@ pub fn toString(self: Script, allocator: std.mem.Allocator) ![]u8 {
     return result.toOwnedSlice();
 }
 
+pub fn evaluate(self: Script, z: u256) !bool {
+    var cmds = try self.cmds.clone();
+    var stack = std.ArrayList([]const u8).init(self.allocator);
+    defer stack.deinit();
+
+    defer for (stack.items) |item| {
+        self.allocator.free(item);
+    };
+
+    var alt_stack = std.ArrayList([]const u8).init(self.allocator);
+    defer alt_stack.deinit();
+
+    defer for (alt_stack.items) |item| {
+        self.allocator.free(item);
+    };
+
+    const interpreter = Interpreter.init(self.allocator);
+
+    while (cmds.popOrNull()) |cmd| {
+        switch (cmd) {
+            .opcode => |opcode| {
+                const operation = Interpreter.table[opcode];
+
+                switch (opcode) {
+                    .OP_IF, .OP_NOTIF => {
+                        if (!try operation(interpreter, .{ .stack = &stack, .cmds = &cmds })) {
+                            // TODO: log error
+                            return false;
+                        }
+                    },
+                    .OP_TOALTSTACK, .OP_FROMALTSTACK => {
+                        if (!try operation(interpreter, .{ .stack = &stack, .alt_stack = &alt_stack })) {
+                            // TODO: log error
+                            return false;
+                        }
+                    },
+                    .OP_CHECKSIG, .OP_CHECKSIGVERIFY, .OP_CHECKMULTISIG, .OP_CHECKMULTISIGVERIFY => {
+                        if (!try operation(interpreter, .{ .stack = &stack, .z = z })) {
+                            // TODO: log error
+                            return false;
+                        }
+                    },
+                    else => {
+                        if (!try operation(interpreter, .{ .stack = &stack })) {
+                            // TODO: log error
+                            return false;
+                        }
+                    },
+                }
+            },
+            .element => |element| {
+                try stack.append(element);
+            },
+        }
+    }
+
+    if (stack.items.len == 0) {
+        return false;
+    }
+
+    const last = stack.pop();
+    defer self.allocator.free(last);
+
+    if (last.len == 0) {
+        return false;
+    }
+
+    return true;
+}
+
 pub fn add(self: Script, other: Script, allocator: std.mem.Allocator) !Script {
     var cmds = std.ArrayList(Cmd).init(allocator);
     errdefer cmds.deinit();
@@ -118,13 +195,13 @@ pub fn add(self: Script, other: Script, allocator: std.mem.Allocator) !Script {
         try cmds.append(try cmd.clone(allocator));
     }
 
-    return cmds.toOwnedSlice();
+    return .{ .allocator = allocator, .cmds = cmds };
 }
 
 pub fn rawSerialize(self: Script, allocator: std.mem.Allocator) ![]u8 {
     var result = std.ArrayList(u8).init(allocator);
 
-    for (self.cmds) |cmd| {
+    for (self.cmds.items) |cmd| {
         switch (cmd) {
             .opcode => |opcode| try result.append(opcode),
             .element => |element| {
