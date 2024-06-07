@@ -20,6 +20,11 @@ pub const script = struct {
     pub const Script = @import("script/script.zig");
 };
 
+pub const interpreter = struct {
+    pub const Interpreter = @import("interpreter/interpreter.zig");
+    pub const Opcode = @import("interpreter/opcode.zig");
+};
+
 test {
     @import("std").testing.refAllDeclsRecursive(@This());
 }

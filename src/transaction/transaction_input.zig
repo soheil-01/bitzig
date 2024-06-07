@@ -15,7 +15,7 @@ script_sig: Script,
 sequence: u32,
 
 pub fn init(allocator: std.mem.Allocator, prev_tx: [32]u8, prev_index: u32, script_sig: ?Script, sequence: ?u32) TransactionInput {
-    return .{ .allocator = allocator, .prev_tx = prev_tx, .prev_index = prev_index, .script_sig = script_sig orelse Script.init(allocator, &[_]u8{}), .sequence = sequence orelse 0xffffffff };
+    return .{ .allocator = allocator, .prev_tx = prev_tx, .prev_index = prev_index, .script_sig = script_sig orelse Script.init(allocator), .sequence = sequence orelse 0xffffffff };
 }
 
 pub fn deinit(self: TransactionInput) void {

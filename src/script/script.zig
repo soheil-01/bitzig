@@ -14,6 +14,7 @@ pub const Cmd = union(enum) {
     pub fn free(self: Cmd, allocator: std.mem.Allocator) void {
         switch (self) {
             .element => |element| allocator.free(element),
+            else => {},
         }
     }
 
@@ -53,7 +54,7 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8) !Script {
 
 pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !Script {
     const length = utils.readVarintFromReader(reader) catch return Error.InvalidEncoding;
-    var cmds = std.ArrayList([]const u8).init(allocator);
+    var cmds = std.ArrayList(Cmd).init(allocator);
     var count: usize = 0;
 
     while (count < length) {
@@ -62,19 +63,19 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !Script {
 
         if (current_byte >= 1 and current_byte <= 75) {
             const buf = try allocator.alloc(u8, current_byte);
-            try reader.readNoEof(buf) catch return Error.InvalidEncoding;
+            reader.readNoEof(buf) catch return Error.InvalidEncoding;
             try cmds.append(.{ .element = buf });
             count += current_byte;
         } else if (current_byte == 76) {
             const data_length = reader.readByte() catch return Error.InvalidEncoding;
             const buf = try allocator.alloc(u8, data_length);
-            try reader.readNoEof(buf);
+            reader.readNoEof(buf) catch return Error.InvalidEncoding;
             try cmds.append(.{ .element = buf });
             count += data_length + 1;
         } else if (current_byte == 77) {
             const data_length = utils.readIntFromReader(u16, reader, .little) catch return Error.InvalidEncoding;
             const buf = try allocator.alloc(u8, data_length);
-            try reader.readNoEof(buf);
+            reader.readNoEof(buf) catch return Error.InvalidEncoding;
             try cmds.append(.{ .element = buf });
             count += data_length + 2;
         } else {
@@ -93,19 +94,20 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !Script {
 pub fn toString(self: Script, allocator: std.mem.Allocator) ![]u8 {
     var result = std.ArrayList(u8).init(allocator);
 
-    for (self.cmds, 0..) |cmd, i| {
+    for (self.cmds.items, 0..) |cmd, i| {
         switch (cmd) {
             .opcode => |opcode| {
                 const name = opcode.name();
                 try result.appendSlice(name);
             },
             .element => |element| {
-                const element_hex = std.fmt.bytesToHex(element, .lower);
+                const element_hex = try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(element)});
                 try result.appendSlice(element_hex);
+                allocator.free(element_hex);
             },
         }
 
-        if (i != self.cmds.len - 1) {
+        if (i != self.cmds.items.len - 1) {
             try result.append(' ');
         }
     }
@@ -134,7 +136,7 @@ pub fn evaluate(self: Script, z: u256) !bool {
     while (cmds.popOrNull()) |cmd| {
         switch (cmd) {
             .opcode => |opcode| {
-                const operation = Interpreter.table[opcode];
+                const operation = Interpreter.table[@intFromEnum(opcode)];
 
                 switch (opcode) {
                     .OP_IF, .OP_NOTIF => {
@@ -187,11 +189,11 @@ pub fn add(self: Script, other: Script, allocator: std.mem.Allocator) !Script {
     var cmds = std.ArrayList(Cmd).init(allocator);
     errdefer cmds.deinit();
 
-    for (self.cmds) |cmd| {
+    for (self.cmds.items) |cmd| {
         try cmds.append(try cmd.clone(allocator));
     }
 
-    for (other.cmds) |cmd| {
+    for (other.cmds.items) |cmd| {
         try cmds.append(try cmd.clone(allocator));
     }
 
@@ -203,17 +205,17 @@ pub fn rawSerialize(self: Script, allocator: std.mem.Allocator) ![]u8 {
 
     for (self.cmds.items) |cmd| {
         switch (cmd) {
-            .opcode => |opcode| try result.append(opcode),
+            .opcode => |opcode| try result.append(@intFromEnum(opcode)),
             .element => |element| {
                 const length = element.len;
                 if (length < 75) {
-                    try result.append(length);
+                    try result.append(@intCast(length));
                 } else if (length > 75 and length < 0x100) {
                     try result.append(76);
-                    try result.append(length);
+                    try result.append(@intCast(length));
                 } else if (length >= 0x100 and length <= 520) {
                     try result.append(77);
-                    const length_bytes = utils.encodeInt(u16, length, .little);
+                    const length_bytes = utils.encodeInt(u16, @intCast(length), .little);
                     try result.appendSlice(&length_bytes);
                 } else {
                     return Error.TooLongCmd;

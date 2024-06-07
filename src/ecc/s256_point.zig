@@ -18,7 +18,7 @@ const gx = constants.secp256k1_gx;
 const gy = constants.secp256k1_gy;
 
 pub const G = S256Point.init(gx, gy) catch unreachable;
-pub const Error = error{InvalidEncoding};
+pub const Error = error{InvalidEncoding} || Point.Error || FieldElement.Error;
 
 inner: Point,
 
