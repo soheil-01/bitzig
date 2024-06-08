@@ -27,9 +27,10 @@ pub fn modPow(a: u256, b: u256, mod: u256) u256 {
     return result;
 }
 
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
 pub fn encodeBase58(dest: []u8, source: []const u8) []u8 {
     assert(source.len <= 128);
-    const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
     var source_extended: [128]u8 = undefined;
     if (source.len != 128) {
@@ -44,14 +45,14 @@ pub fn encodeBase58(dest: []u8, source: []const u8) []u8 {
     while (num > 0) : (num /= 58) {
         assert(i > 0);
         i -= 1;
-        dest[i] = alphabet[@intCast(num % 58)];
+        dest[i] = BASE58_ALPHABET[@intCast(num % 58)];
     }
 
     for (source) |ch| {
         if (ch == 0) {
             assert(i > 0);
             i -= 1;
-            dest[i] = alphabet[0];
+            dest[i] = BASE58_ALPHABET[0];
         } else break;
     }
 
@@ -62,6 +63,24 @@ pub fn encodeBase58Checksum(dest: []u8, comptime source_len: usize, source: [sou
     const hash256_source = hash256(&source);
 
     return encodeBase58(dest, source ++ hash256_source[0..4]);
+}
+
+pub fn decodeBase58Address(source: []const u8) ![]u8 {
+    var num: u200 = 0;
+    for (source) |char| {
+        num *= 58;
+        num += std.ascii.indexOfIgnoreCase(BASE58_ALPHABET, &.{char}).?;
+    }
+
+    var combined: [25]u8 = encodeInt(u200, num, .big);
+    const checksum = combined[combined.len - 4 ..];
+
+    const expected_checksum = hash256(combined[0 .. combined.len - 4])[0..4];
+    if (!std.mem.eql(u8, checksum, expected_checksum)) {
+        return error.BadAddress;
+    }
+
+    return combined[1 .. combined.len - 4];
 }
 
 pub fn hash256(msg: []const u8) [32]u8 {

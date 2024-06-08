@@ -32,8 +32,20 @@ pub const Cmd = union(enum) {
 allocator: std.mem.Allocator,
 cmds: std.ArrayList(Cmd),
 
-pub fn init(allocator: std.mem.Allocator) Script {
-    return .{ .allocator = allocator, .cmds = std.ArrayList(Cmd).init(allocator) };
+pub fn init(allocator: std.mem.Allocator, cmds: ?[]const Cmd) !Script {
+    var commands = std.ArrayList(Cmd).init(allocator);
+
+    if (cmds != null) {
+        try commands.appendSlice(cmds.?);
+    }
+
+    return .{ .allocator = allocator, .cmds = commands };
+}
+
+pub fn p2pkhScript(allocator: std.mem.Allocator, h160: [20]u8) !Script {
+    const h160_element = try allocator.dupe(u8, &h160);
+
+    return Script.init(allocator, &.{ Cmd{ .opcode = .OP_DUP }, Cmd{ .opcode = .OP_HASH160 }, Cmd{ .element = h160_element }, Cmd{ .opcode = .OP_EQUALVERIFY }, Cmd{ .opcode = .OP_CHECKSIG } });
 }
 
 pub fn deinit(self: Script) void {

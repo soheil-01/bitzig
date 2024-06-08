@@ -3,6 +3,8 @@ const utils = @import("../utils.zig");
 const TransactionInput = @import("transaction_input.zig");
 const TransactionOutput = @import("transaction_output.zig");
 const TransactionFetcher = @import("transaction_fetcher.zig");
+const PrivateKey = @import("../ecc/private_key.zig");
+const Script = @import("../script/script.zig");
 
 const Transaction = @This();
 
@@ -99,7 +101,7 @@ pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, inp
     for (self.tx_ins, 0..) |tx_in, i| {
         const script_sig = if (input_index == i) try tx_in.scriptPubkey(fetcher, self.testnet, fresh) else null;
 
-        const serialized_tx_in = try TransactionInput.init(self.allocator, tx_in.prev_tx, tx_in.prev_index, script_sig, tx_in.sequence).serialize(self.allocator);
+        const serialized_tx_in = try (try TransactionInput.init(self.allocator, tx_in.prev_tx, tx_in.prev_index, script_sig, tx_in.sequence)).serialize(self.allocator);
         defer self.allocator.free(serialized_tx_in);
 
         try result.appendSlice(serialized_tx_in);
@@ -148,6 +150,21 @@ pub fn verify(self: Transaction, fetcher: *TransactionFetcher, fresh: bool) !boo
     }
 
     return true;
+}
+
+pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, input_index: usize, privateKey: PrivateKey) !bool {
+    const z = try self.sigHash(fetcher, fresh, input_index);
+
+    var der_buf: [72]u8 = undefined;
+    const der = privateKey.sign(z).toDer(&der_buf);
+
+    const sig = try std.mem.concat(self.allocator, u8, &.{ der, &.{SIGHASH_ALL} });
+    const sec = privateKey.point.toCompressedSec();
+
+    const script_sig = try Script.init(self.allocator, &.{ Script.Cmd{ .element = sig }, Script.Cmd{ .element = try self.allocator.dupe(u8, &sec) } });
+    self.tx_ins[input_index].script_sig = script_sig;
+
+    return self.verifyInput(fetcher, fresh, input_index);
 }
 
 pub fn serialize(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
@@ -313,7 +330,7 @@ test "Transaction" {
         const index: u32 = 0;
         const want_value: u64 = 42505594;
 
-        const tx_in = TransactionInput.init(testing_alloc, tx_hash[0..32].*, index, null, null);
+        const tx_in = try TransactionInput.init(testing_alloc, tx_hash[0..32].*, index, null, null);
         defer tx_in.deinit();
 
         const input_value = try tx_in.value(&transactionFetcher, false, false);
