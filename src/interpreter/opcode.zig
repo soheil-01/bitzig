@@ -99,10 +99,10 @@ pub const Opcode = enum(u8) {
     };
 
     pub fn isValid(value: u8) bool {
-        return Opcode.names[value] != null;
+        return names[value] != null;
     }
 
     pub fn name(self: Opcode) []const u8 {
-        return Opcode.names[@intFromEnum(self)].?;
+        return names[@intFromEnum(self)].?;
     }
 };

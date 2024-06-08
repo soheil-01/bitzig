@@ -117,6 +117,8 @@ pub fn toString(self: Script, allocator: std.mem.Allocator) ![]u8 {
 
 pub fn evaluate(self: Script, z: u256) !bool {
     var cmds = try self.cmds.clone();
+    defer cmds.deinit();
+
     var stack = std.ArrayList([]const u8).init(self.allocator);
     defer stack.deinit();
 
