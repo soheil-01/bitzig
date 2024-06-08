@@ -8,6 +8,10 @@ const Transaction = @This();
 
 const Error = error{InvalidEncoding};
 
+const SIGHASH_ALL = 1;
+const SIGHASH_NONE = 2;
+const SIGHASH_SINGLE = 3;
+
 allocator: std.mem.Allocator,
 version: u32,
 tx_ins: []TransactionInput,
@@ -80,6 +84,70 @@ pub fn fee(self: Transaction, fetcher: *TransactionFetcher, fresh: bool) !u64 {
     }
 
     return input_sum - output_sum;
+}
+
+pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, input_index: usize) !u256 {
+    var result = std.ArrayList(u8).init(self.allocator);
+    defer result.deinit();
+
+    const version_bytes = utils.encodeInt(u32, self.version, .little);
+    try result.appendSlice(&version_bytes);
+
+    const num_inputs = try utils.encodeVarint(self.allocator, self.tx_ins.len);
+    defer self.allocator.free(num_inputs);
+    try result.appendSlice(num_inputs);
+    for (self.tx_ins, 0..) |tx_in, i| {
+        const script_sig = if (input_index == i) try tx_in.scriptPubkey(fetcher, self.testnet, fresh) else null;
+
+        const serialized_tx_in = try TransactionInput.init(self.allocator, tx_in.prev_tx, tx_in.prev_index, script_sig, tx_in.sequence).serialize(self.allocator);
+        defer self.allocator.free(serialized_tx_in);
+
+        try result.appendSlice(serialized_tx_in);
+    }
+
+    const num_outputs = try utils.encodeVarint(self.allocator, self.tx_outs.len);
+    defer self.allocator.free(num_outputs);
+    try result.appendSlice(num_outputs);
+    for (self.tx_outs) |tx_out| {
+        const serialized_tx_out = try tx_out.serialize(self.allocator);
+        defer self.allocator.free(serialized_tx_out);
+        try result.appendSlice(serialized_tx_out);
+    }
+
+    const locktime_bytes = utils.encodeInt(u32, self.locktime, .little);
+    try result.appendSlice(&locktime_bytes);
+
+    const sighash_all_bytes = utils.encodeInt(u32, SIGHASH_ALL, .little);
+    try result.appendSlice(&sighash_all_bytes);
+
+    const hash256_result = utils.hash256(result.items);
+
+    return std.mem.readInt(u256, &hash256_result, .big);
+}
+
+pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, input_index: usize) !bool {
+    const tx_in = self.tx_ins[input_index];
+    const script_pubkey = try tx_in.scriptPubkey(fetcher, self.testnet, fresh);
+    const z = try self.sigHash(fetcher, fresh, input_index);
+
+    const combined = try tx_in.script_sig.add(script_pubkey, self.allocator);
+    defer combined.deinit();
+
+    return combined.evaluate(z);
+}
+
+pub fn verify(self: Transaction, fetcher: *TransactionFetcher, fresh: bool) !bool {
+    if (try self.fee(fetcher, fresh) < 0) {
+        return false;
+    }
+
+    for (0..self.tx_ins.len) |i| {
+        if (!try self.verifyInput(fetcher, fresh, i)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 pub fn serialize(self: Transaction, allocator: std.mem.Allocator) ![]u8 {

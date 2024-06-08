@@ -38,6 +38,12 @@ pub fn value(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool
     return transaction.tx_outs[self.prev_index].amount;
 }
 
+pub fn scriptPubkey(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool, fresh: bool) !Script {
+    const transaction = try self.fetchTransaction(fetcher, testnet, fresh);
+
+    return transaction.tx_outs[self.prev_index].script_pubkey;
+}
+
 pub fn serialize(self: TransactionInput, allocator: std.mem.Allocator) ![]u8 {
     var result = std.ArrayList(u8).init(allocator);
 
