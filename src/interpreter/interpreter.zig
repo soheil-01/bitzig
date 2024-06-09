@@ -70,7 +70,7 @@ fn opVerify(self: Interpreter, options: Options) Error!bool {
     }
 
     const element = options.stack.pop();
-    if (try self.decodeNum(element) == 0) {
+    if (self.decodeNum(element) == 0) {
         return false;
     }
 
@@ -182,14 +182,13 @@ pub fn encodeNum(self: Interpreter, num: i512) ![]u8 {
     return result.toOwnedSlice();
 }
 
-pub fn decodeNum(self: Interpreter, element: []const u8) !i512 {
+pub fn decodeNum(_: Interpreter, element: []const u8) i512 {
     if (element.len == 0) {
         return 0;
     }
 
-    var big_endian = try self.allocator.dupe(u8, element);
-    defer self.allocator.free(big_endian);
-    std.mem.reverse(u8, big_endian);
+    var big_endian = element.*;
+    std.mem.reverse(u8, big_endian[0..]);
 
     var negative = false;
     var result: i512 = big_endian[0];
@@ -247,5 +246,5 @@ test "Interpreter: opCheckSig" {
     const last = stack.pop();
     defer testing_alloc.free(last);
 
-    try testing.expect(try interpreter.decodeNum(last) == 1);
+    try testing.expect(interpreter.decodeNum(last) == 1);
 }

@@ -3,6 +3,8 @@ const c = @cImport({
     @cInclude("ripemd160.h");
 });
 
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
 const assert = std.debug.assert;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 
@@ -26,8 +28,6 @@ pub fn modPow(a: u256, b: u256, mod: u256) u256 {
 
     return result;
 }
-
-const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 pub fn encodeBase58(dest: []u8, source: []const u8) []u8 {
     assert(source.len <= 128);
@@ -72,7 +72,7 @@ pub fn decodeBase58Address(source: []const u8) ![]u8 {
         num += std.ascii.indexOfIgnoreCase(BASE58_ALPHABET, &.{char}).?;
     }
 
-    var combined: [25]u8 = encodeInt(u200, num, .big);
+    var combined = encodeInt(u200, num, .big);
     const checksum = combined[combined.len - 4 ..];
 
     const expected_checksum = hash256(combined[0 .. combined.len - 4])[0..4];
@@ -178,5 +178,7 @@ pub fn encodeInt(comptime T: type, int: T, endian: std.builtin.Endian) [@divExac
 
 pub fn hexToBytes(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
     const bytes = try allocator.alloc(u8, source.len / 2);
+    errdefer allocator.free(bytes);
+
     return std.fmt.hexToBytes(bytes, source);
 }

@@ -22,7 +22,7 @@ pub const script = struct {
 
 pub const interpreter = struct {
     pub const Interpreter = @import("interpreter/interpreter.zig");
-    pub const Opcode = @import("interpreter/opcode.zig").Opcode;
+    pub usingnamespace @import("interpreter/opcode.zig");
 };
 
 test {
