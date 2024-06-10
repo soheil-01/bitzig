@@ -8,7 +8,7 @@ const Script = @import("../script/script.zig");
 
 const Transaction = @This();
 
-const Error = error{InvalidEncoding};
+pub const Error = error{InvalidEncoding};
 
 const SIGHASH_ALL = 1;
 const SIGHASH_NONE = 2;
@@ -43,6 +43,7 @@ pub fn toString(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
     for (self.tx_ins) |tx_in| {
         const tx_in_string = try tx_in.toString(allocator);
         defer allocator.free(tx_in_string);
+
         try tx_ins.appendSlice(tx_in_string);
     }
 
@@ -50,34 +51,35 @@ pub fn toString(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
     for (self.tx_outs) |tx_out| {
         const tx_out_string = try tx_out.toString(allocator);
         defer allocator.free(tx_out_string);
+
         try tx_outs.appendSlice(tx_out_string);
     }
 
-    const tx_id = try self.id(allocator);
-    defer allocator.free(tx_id);
+    const tx_id = try self.id();
 
     return std.fmt.allocPrint(allocator, "tx: {s}\nversion: {d}\ntx_ins: {s}\ntx_outs: {s}\nlocktime: {d}", .{ tx_id, self.version, try tx_ins.toOwnedSlice(), try tx_outs.toOwnedSlice(), self.locktime });
 }
 
-pub fn id(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
-    const tx_hash = try self.hash(allocator);
+pub fn id(self: Transaction) ![64]u8 {
+    const tx_hash = try self.hash();
 
-    return std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(&tx_hash)});
+    return std.fmt.bytesToHex(tx_hash, .lower);
 }
 
-pub fn hash(self: Transaction, allocator: std.mem.Allocator) ![32]u8 {
-    const serialized = try self.serialize(allocator);
-    defer allocator.free(serialized);
+pub fn hash(self: Transaction) ![32]u8 {
+    const serialized = try self.serialize(self.allocator);
+    defer self.allocator.free(serialized);
+
     var result = utils.hash256(serialized);
     std.mem.reverse(u8, &result);
 
     return result;
 }
 
-pub fn fee(self: Transaction, fetcher: *TransactionFetcher, fresh: bool) !u64 {
+pub fn fee(self: Transaction, fetcher: *TransactionFetcher) !u64 {
     var input_sum: u64 = 0;
     for (self.tx_ins) |tx| {
-        input_sum += try tx.value(fetcher, self.testnet, fresh);
+        input_sum += try tx.value(fetcher, self.testnet);
     }
 
     var output_sum: u64 = 0;
@@ -88,7 +90,7 @@ pub fn fee(self: Transaction, fetcher: *TransactionFetcher, fresh: bool) !u64 {
     return input_sum - output_sum;
 }
 
-pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, input_index: usize) !u256 {
+pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, input_index: usize) !u256 {
     var result = std.ArrayList(u8).init(self.allocator);
     defer result.deinit();
 
@@ -98,9 +100,9 @@ pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, inp
     const num_inputs = try utils.encodeVarint(self.allocator, self.tx_ins.len);
     defer self.allocator.free(num_inputs);
     try result.appendSlice(num_inputs);
-    for (self.tx_ins, 0..) |tx_in, i| {
-        const script_sig = if (input_index == i) try tx_in.scriptPubkey(fetcher, self.testnet, fresh) else null;
 
+    for (self.tx_ins, 0..) |tx_in, i| {
+        const script_sig = if (input_index == i) try tx_in.scriptPubkey(fetcher, self.testnet) else null;
         const serialized_tx_in = try (try TransactionInput.init(self.allocator, tx_in.prev_tx, tx_in.prev_index, script_sig, tx_in.sequence)).serialize(self.allocator);
         defer self.allocator.free(serialized_tx_in);
 
@@ -109,10 +111,13 @@ pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, inp
 
     const num_outputs = try utils.encodeVarint(self.allocator, self.tx_outs.len);
     defer self.allocator.free(num_outputs);
+
     try result.appendSlice(num_outputs);
+
     for (self.tx_outs) |tx_out| {
         const serialized_tx_out = try tx_out.serialize(self.allocator);
         defer self.allocator.free(serialized_tx_out);
+
         try result.appendSlice(serialized_tx_out);
     }
 
@@ -127,10 +132,10 @@ pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, inp
     return std.mem.readInt(u256, &hash256_result, .big);
 }
 
-pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, input_index: usize) !bool {
+pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index: usize) !bool {
     const tx_in = self.tx_ins[input_index];
-    const script_pubkey = try tx_in.scriptPubkey(fetcher, self.testnet, fresh);
-    const z = try self.sigHash(fetcher, fresh, input_index);
+    const script_pubkey = try tx_in.scriptPubkey(fetcher, self.testnet);
+    const z = try self.sigHash(fetcher, input_index);
 
     const combined = try tx_in.script_sig.add(script_pubkey, self.allocator);
     defer combined.deinit();
@@ -138,13 +143,13 @@ pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, fresh: bool,
     return combined.evaluate(z);
 }
 
-pub fn verify(self: Transaction, fetcher: *TransactionFetcher, fresh: bool) !bool {
-    if (try self.fee(fetcher, fresh) < 0) {
+pub fn verify(self: Transaction, fetcher: *TransactionFetcher) !bool {
+    if (try self.fee(fetcher) < 0) {
         return false;
     }
 
     for (0..self.tx_ins.len) |i| {
-        if (!try self.verifyInput(fetcher, fresh, i)) {
+        if (!try self.verifyInput(fetcher, i)) {
             return false;
         }
     }
@@ -152,8 +157,8 @@ pub fn verify(self: Transaction, fetcher: *TransactionFetcher, fresh: bool) !boo
     return true;
 }
 
-pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, input_index: usize, privateKey: PrivateKey) !bool {
-    const z = try self.sigHash(fetcher, fresh, input_index);
+pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, input_index: usize, privateKey: PrivateKey) !bool {
+    const z = try self.sigHash(fetcher, input_index);
 
     var der_buf: [72]u8 = undefined;
     const der = privateKey.sign(z).toDer(&der_buf);
@@ -164,7 +169,7 @@ pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, fresh: bool, i
     const script_sig = try Script.init(self.allocator, &.{ Script.Cmd{ .element = sig }, Script.Cmd{ .element = try self.allocator.dupe(u8, &sec) } });
     self.tx_ins[input_index].script_sig = script_sig;
 
-    return self.verifyInput(fetcher, fresh, input_index);
+    return self.verifyInput(fetcher, input_index);
 }
 
 pub fn serialize(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
@@ -333,7 +338,7 @@ test "Transaction" {
         const tx_in = try TransactionInput.init(testing_alloc, tx_hash[0..32].*, index, null, null);
         defer tx_in.deinit();
 
-        const input_value = try tx_in.value(&transactionFetcher, false, false);
+        const input_value = try tx_in.value(&transactionFetcher, false);
         try testing.expect(input_value == want_value);
     }
 
@@ -344,7 +349,7 @@ test "Transaction" {
             defer testing_alloc.free(tx_bytes);
             const tx = try Transaction.parse(testing_alloc, tx_bytes, false);
             defer tx.deinit();
-            const tx_fee = try tx.fee(&transactionFetcher, false);
+            const tx_fee = try tx.fee(&transactionFetcher);
             try testing.expect(tx_fee == 40000);
         }
 
@@ -353,7 +358,7 @@ test "Transaction" {
             defer testing_alloc.free(tx_bytes);
             const tx = try Transaction.parse(testing_alloc, tx_bytes, false);
             defer tx.deinit();
-            const tx_fee = try tx.fee(&transactionFetcher, false);
+            const tx_fee = try tx.fee(&transactionFetcher);
             try testing.expect(tx_fee == 140500);
         }
     }

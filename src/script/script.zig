@@ -32,14 +32,14 @@ pub const Cmd = union(enum) {
 allocator: std.mem.Allocator,
 cmds: std.ArrayList(Cmd),
 
-pub fn init(allocator: std.mem.Allocator, cmds: ?[]const Cmd) !Script {
-    var commands = std.ArrayList(Cmd).init(allocator);
+pub fn init(allocator: std.mem.Allocator, commands: ?[]const Cmd) !Script {
+    var cmds = std.ArrayList(Cmd).init(allocator);
 
-    if (cmds != null) {
-        try commands.appendSlice(cmds.?);
+    if (commands != null) {
+        try cmds.appendSlice(commands.?);
     }
 
-    return .{ .allocator = allocator, .cmds = commands };
+    return .{ .allocator = allocator, .cmds = cmds };
 }
 
 pub fn p2pkhScript(allocator: std.mem.Allocator, h160: [20]u8) !Script {

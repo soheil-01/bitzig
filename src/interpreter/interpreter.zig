@@ -53,7 +53,10 @@ fn opEqual(self: Interpreter, options: Options) !bool {
     }
 
     const element1 = options.stack.pop();
+    defer self.allocator.free(element1);
+
     const element2 = options.stack.pop();
+    defer self.allocator.free(element2);
 
     if (std.mem.eql(u8, element1, element2)) {
         try options.stack.append(try self.encodeNum(1));
@@ -70,7 +73,9 @@ fn opVerify(self: Interpreter, options: Options) Error!bool {
     }
 
     const element = options.stack.pop();
-    if (self.decodeNum(element) == 0) {
+    defer self.allocator.free(element);
+
+    if (try self.decodeNum(element) == 0) {
         return false;
     }
 
@@ -182,13 +187,13 @@ pub fn encodeNum(self: Interpreter, num: i512) ![]u8 {
     return result.toOwnedSlice();
 }
 
-pub fn decodeNum(_: Interpreter, element: []const u8) i512 {
+pub fn decodeNum(self: Interpreter, element: []const u8) !i512 {
     if (element.len == 0) {
         return 0;
     }
 
-    var big_endian = element.*;
-    std.mem.reverse(u8, big_endian[0..]);
+    var big_endian = try self.allocator.dupe(u8, element);
+    std.mem.reverse(u8, big_endian);
 
     var negative = false;
     var result: i512 = big_endian[0];
@@ -246,5 +251,5 @@ test "Interpreter: opCheckSig" {
     const last = stack.pop();
     defer testing_alloc.free(last);
 
-    try testing.expect(interpreter.decodeNum(last) == 1);
+    try testing.expect(try interpreter.decodeNum(last) == 1);
 }

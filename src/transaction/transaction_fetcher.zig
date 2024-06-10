@@ -52,10 +52,9 @@ pub fn fetchAndParse(self: *TransactionFetcher, allocator: std.mem.Allocator, tx
         transaction = try Transaction.parse(allocator, transaction_bytes, testnet);
     }
 
-    const fetched_tx_id = try transaction.id(self.allocator);
-    defer self.allocator.free(fetched_tx_id);
+    const fetched_tx_id = try transaction.id();
 
-    if (!std.mem.eql(u8, tx_id, fetched_tx_id)) {
+    if (!std.mem.eql(u8, tx_id, &fetched_tx_id)) {
         return Error.NotTheSameTransactionId;
     }
 

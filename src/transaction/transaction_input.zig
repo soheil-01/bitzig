@@ -26,20 +26,20 @@ pub fn toString(self: TransactionInput, allocator: std.mem.Allocator) ![]u8 {
     return std.fmt.allocPrint(allocator, "{s}:{d}", .{ std.fmt.fmtSliceHexLower(&self.prev_tx), self.prev_index });
 }
 
-pub fn fetchTransaction(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool, fresh: bool) !Transaction {
+pub fn fetchTransaction(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool) !Transaction {
     const tx_id = std.fmt.bytesToHex(self.prev_tx, .lower);
-    return fetcher.fetchAndParse(self.allocator, &tx_id, testnet, fresh);
+    return fetcher.fetchAndParse(self.allocator, &tx_id, testnet, false);
 }
 
-pub fn value(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool, fresh: bool) !u64 {
-    const transaction = try self.fetchTransaction(fetcher, testnet, fresh);
+pub fn value(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool) !u64 {
+    const transaction = try self.fetchTransaction(fetcher, testnet);
     defer transaction.deinit();
 
     return transaction.tx_outs[self.prev_index].amount;
 }
 
-pub fn scriptPubkey(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool, fresh: bool) !Script {
-    const transaction = try self.fetchTransaction(fetcher, testnet, fresh);
+pub fn scriptPubkey(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool) !Script {
+    const transaction = try self.fetchTransaction(fetcher, testnet);
 
     return transaction.tx_outs[self.prev_index].script_pubkey;
 }
