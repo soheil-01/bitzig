@@ -1,11 +1,9 @@
 const std = @import("std");
 const utils = @import("../utils.zig");
-const Opcode = @import("../interpreter/opcode.zig").Opcode;
 const Interpreter = @import("../interpreter/interpreter.zig");
+const Opcode = @import("../interpreter/opcode.zig").Opcode;
 
 const Script = @This();
-
-const Error = error{ InvalidEncoding, TooLongCmd };
 
 pub const Cmd = union(enum) {
     opcode: Opcode,
@@ -32,28 +30,25 @@ pub const Cmd = union(enum) {
 allocator: std.mem.Allocator,
 cmds: std.ArrayList(Cmd),
 
-pub fn init(allocator: std.mem.Allocator, commands: ?[]const Cmd) !Script {
-    var cmds = std.ArrayList(Cmd).init(allocator);
+pub fn init(allocator: std.mem.Allocator, cmds: ?std.ArrayList(Cmd)) !Script {
+    return .{ .allocator = allocator, .cmds = cmds orelse std.ArrayList(Cmd).init(allocator) };
+}
 
-    if (commands != null) {
-        try cmds.appendSlice(commands.?);
-    }
+pub fn p2pkhScript(allocator: std.mem.Allocator, h160: [20]u8) !Script {
+    var cmds = std.ArrayList(Cmd).init(allocator);
+    try cmds.appendSlice(&.{
+        Cmd{ .opcode = .OP_DUP },
+        Cmd{ .opcode = .OP_HASH160 },
+        Cmd{ .element = try allocator.dupe(u8, &h160) },
+        Cmd{ .opcode = .OP_EQUALVERIFY },
+        Cmd{ .opcode = .OP_CHECKSIG },
+    });
 
     return .{ .allocator = allocator, .cmds = cmds };
 }
 
-pub fn p2pkhScript(allocator: std.mem.Allocator, h160: [20]u8) !Script {
-    const h160_element = try allocator.dupe(u8, &h160);
-
-    return Script.init(allocator, &.{ Cmd{ .opcode = .OP_DUP }, Cmd{ .opcode = .OP_HASH160 }, Cmd{ .element = h160_element }, Cmd{ .opcode = .OP_EQUALVERIFY }, Cmd{ .opcode = .OP_CHECKSIG } });
-}
-
 pub fn deinit(self: Script) void {
-    for (self.cmds.items) |cmd| {
-        if (cmd == .element) {
-            self.allocator.free(cmd.element);
-        }
-    }
+    for (self.cmds.items) |cmd| cmd.free(self.allocator);
     self.cmds.deinit();
 }
 
@@ -65,29 +60,29 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8) !Script {
 }
 
 pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !Script {
-    const length = utils.readVarintFromReader(reader) catch return Error.InvalidEncoding;
+    const length = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
     var cmds = std.ArrayList(Cmd).init(allocator);
     var count: usize = 0;
 
     while (count < length) {
-        const current_byte = reader.readByte() catch return Error.InvalidEncoding;
+        const current_byte = reader.readByte() catch return error.InvalidEncoding;
         count += 1;
 
         if (current_byte >= 1 and current_byte <= 75) {
             const buf = try allocator.alloc(u8, current_byte);
-            reader.readNoEof(buf) catch return Error.InvalidEncoding;
+            reader.readNoEof(buf) catch return error.InvalidEncoding;
             try cmds.append(.{ .element = buf });
             count += current_byte;
         } else if (current_byte == 76) {
-            const data_length = reader.readByte() catch return Error.InvalidEncoding;
+            const data_length = reader.readByte() catch return error.InvalidEncoding;
             const buf = try allocator.alloc(u8, data_length);
-            reader.readNoEof(buf) catch return Error.InvalidEncoding;
+            reader.readNoEof(buf) catch return error.InvalidEncoding;
             try cmds.append(.{ .element = buf });
             count += data_length + 1;
         } else if (current_byte == 77) {
-            const data_length = utils.readIntFromReader(u16, reader, .little) catch return Error.InvalidEncoding;
+            const data_length = utils.readIntFromReader(u16, reader, .little) catch return error.InvalidEncoding;
             const buf = try allocator.alloc(u8, data_length);
-            reader.readNoEof(buf) catch return Error.InvalidEncoding;
+            reader.readNoEof(buf) catch return error.InvalidEncoding;
             try cmds.append(.{ .element = buf });
             count += data_length + 2;
         } else {
@@ -97,7 +92,7 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !Script {
     }
 
     if (count != length) {
-        return Error.InvalidEncoding;
+        return error.InvalidEncoding;
     }
 
     return .{ .allocator = allocator, .cmds = cmds };
@@ -232,7 +227,7 @@ pub fn rawSerialize(self: Script, allocator: std.mem.Allocator) ![]u8 {
                     const length_bytes = utils.encodeInt(u16, @intCast(length), .little);
                     try result.appendSlice(&length_bytes);
                 } else {
-                    return Error.TooLongCmd;
+                    return error.TooLongCmd;
                 }
                 try result.appendSlice(element);
             },

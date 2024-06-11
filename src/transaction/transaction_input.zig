@@ -6,8 +6,6 @@ const TransactionFetcher = @import("transaction_fetcher.zig");
 
 const TransactionInput = @This();
 
-const Error = error{InvalidEncoding};
-
 allocator: std.mem.Allocator,
 prev_tx: [32]u8,
 prev_index: u32,
@@ -73,12 +71,12 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8) !TransactionInput
 
 pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !TransactionInput {
     var prev_tx: [32]u8 = undefined;
-    reader.readNoEof(&prev_tx) catch return Error.InvalidEncoding;
+    reader.readNoEof(&prev_tx) catch return error.InvalidEncoding;
     std.mem.reverse(u8, &prev_tx);
 
-    const prev_index = utils.readIntFromReader(u32, reader, .little) catch return Error.InvalidEncoding;
+    const prev_index = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
     const script = try Script.parseFromReader(allocator, reader);
-    const sequence = utils.readIntFromReader(u32, reader, .little) catch return Error.InvalidEncoding;
+    const sequence = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
 
     return init(allocator, prev_tx, prev_index, script, sequence);
 }

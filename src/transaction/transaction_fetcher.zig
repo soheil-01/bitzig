@@ -5,8 +5,6 @@ const Transaction = @import("transaction.zig");
 
 const TransactionFetcher = @This();
 
-const Error = error{ HttpFailed, NotTheSameTransactionId };
-
 allocator: std.mem.Allocator,
 cache: std.StringHashMap([]const u8),
 buf: std.ArrayList(u8),
@@ -24,8 +22,8 @@ pub fn deinit(self: *TransactionFetcher) void {
         self.allocator.free(entry.key_ptr.*);
         self.allocator.free(entry.value_ptr.*);
     }
-
     self.cache.deinit();
+
     self.buf.deinit();
 }
 
@@ -55,7 +53,7 @@ pub fn fetchAndParse(self: *TransactionFetcher, allocator: std.mem.Allocator, tx
     const fetched_tx_id = try transaction.id();
 
     if (!std.mem.eql(u8, tx_id, &fetched_tx_id)) {
-        return Error.NotTheSameTransactionId;
+        return error.NotTheSameTransactionId;
     }
 
     return transaction;
@@ -78,7 +76,7 @@ pub fn fetchTransactionHex(self: *TransactionFetcher, tx_id: []const u8, testnet
     const res = try client.fetch(.{ .location = .{ .url = url }, .payload = payload, .response_storage = .{ .dynamic = &self.buf } });
 
     if (res.status != .ok) {
-        return Error.HttpFailed;
+        return error.HttpFailed;
     }
 
     const T = struct { result: ?[]const u8, @"error": ?[]const u8, id: u8 };
@@ -86,7 +84,7 @@ pub fn fetchTransactionHex(self: *TransactionFetcher, tx_id: []const u8, testnet
     defer response_parsed.deinit();
 
     if (response_parsed.value.result == null) {
-        return Error.HttpFailed;
+        return error.HttpFailed;
     }
 
     const transaction_hex = response_parsed.value.result.?;

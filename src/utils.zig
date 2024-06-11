@@ -69,13 +69,13 @@ pub fn decodeBase58Address(source: []const u8) ![]u8 {
     var num: u200 = 0;
     for (source) |char| {
         num *= 58;
-        num += std.ascii.indexOfIgnoreCase(BASE58_ALPHABET, &.{char}).?;
+        num += std.mem.indexOf(u8, BASE58_ALPHABET, &.{char}).?;
     }
 
     var combined = encodeInt(u200, num, .big);
     const checksum = combined[combined.len - 4 ..];
-
     const expected_checksum = hash256(combined[0 .. combined.len - 4])[0..4];
+
     if (!std.mem.eql(u8, checksum, expected_checksum)) {
         return error.BadAddress;
     }

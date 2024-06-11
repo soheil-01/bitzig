@@ -9,8 +9,6 @@ const Interpreter = @This();
 
 allocator: std.mem.Allocator,
 
-pub const Error = error{ OpcodeNotFound, MissingZOption } || S256Point.Error || Signature.Error || std.mem.Allocator.Error;
-
 pub const Options = struct {
     stack: *std.ArrayList([]const u8),
     alt_stack: ?*std.ArrayList([]const u8) = null,
@@ -18,7 +16,7 @@ pub const Options = struct {
     z: ?u256 = null,
 };
 
-pub const Instruction = fn (Interpreter, Options) Error!bool;
+pub const Instruction = fn (Interpreter, Options) anyerror!bool;
 pub const InstructionPtr = *const Instruction;
 
 pub const table: [256]InstructionPtr = init: {
@@ -67,7 +65,7 @@ fn opEqual(self: Interpreter, options: Options) !bool {
     return true;
 }
 
-fn opVerify(self: Interpreter, options: Options) Error!bool {
+fn opVerify(self: Interpreter, options: Options) !bool {
     if (options.stack.items.len == 0) {
         return false;
     }
@@ -82,11 +80,11 @@ fn opVerify(self: Interpreter, options: Options) Error!bool {
     return true;
 }
 
-fn opEqualVerify(self: Interpreter, options: Options) Error!bool {
+fn opEqualVerify(self: Interpreter, options: Options) !bool {
     return try self.opEqual(options) and try self.opVerify(options);
 }
 
-fn opDup(self: Interpreter, options: Options) Error!bool {
+fn opDup(self: Interpreter, options: Options) !bool {
     if (options.stack.items.len < 1) {
         return false;
     }
@@ -97,9 +95,9 @@ fn opDup(self: Interpreter, options: Options) Error!bool {
     return true;
 }
 
-fn opCheckSig(self: Interpreter, options: Options) Error!bool {
+fn opCheckSig(self: Interpreter, options: Options) !bool {
     if (options.z == null) {
-        return Error.MissingZOption;
+        return error.MissingZOption;
     }
     const z = options.z.?;
 
@@ -127,7 +125,7 @@ fn opCheckSig(self: Interpreter, options: Options) Error!bool {
     return true;
 }
 
-fn opHash256(self: Interpreter, options: Options) Error!bool {
+fn opHash256(self: Interpreter, options: Options) !bool {
     if (options.stack.items.len < 1) {
         return false;
     }
@@ -143,7 +141,7 @@ fn opHash256(self: Interpreter, options: Options) Error!bool {
     return true;
 }
 
-fn opHash160(self: Interpreter, options: Options) Error!bool {
+fn opHash160(self: Interpreter, options: Options) !bool {
     if (options.stack.items.len < 1) {
         return false;
     }
@@ -159,8 +157,8 @@ fn opHash160(self: Interpreter, options: Options) Error!bool {
     return true;
 }
 
-pub fn notFound(_: Interpreter, _: Options) Error!bool {
-    return Error.OpcodeNotFound;
+pub fn notFound(_: Interpreter, _: Options) !bool {
+    return error.OpcodeNotFound;
 }
 
 pub fn encodeNum(self: Interpreter, num: i512) ![]u8 {

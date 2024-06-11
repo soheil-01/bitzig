@@ -8,8 +8,6 @@ const Script = @import("../script/script.zig");
 
 const Transaction = @This();
 
-pub const Error = error{InvalidEncoding};
-
 const SIGHASH_ALL = 1;
 const SIGHASH_NONE = 2;
 const SIGHASH_SINGLE = 3;
@@ -21,43 +19,50 @@ tx_outs: []TransactionOutput,
 locktime: u32,
 testnet: bool,
 
-pub fn init(allocator: std.mem.Allocator, version: u32, tx_ins: []TransactionInput, tx_outs: []TransactionOutput, locktime: ?u32, testnet: bool) Transaction {
+pub fn init(allocator: std.mem.Allocator, version: u32, tx_ins: []TransactionInput, tx_outs: []TransactionOutput, locktime: ?u32, testnet: bool) !Transaction {
     return .{ .allocator = allocator, .version = version, .tx_ins = tx_ins, .tx_outs = tx_outs, .locktime = locktime orelse 0xffffffff, .testnet = testnet };
 }
 
 pub fn deinit(self: Transaction) void {
-    for (self.tx_ins) |tx_in| {
-        tx_in.deinit();
-    }
-
-    for (self.tx_outs) |tx_out| {
-        tx_out.deinit();
-    }
-
+    for (self.tx_ins) |tx_in| tx_in.deinit();
     self.allocator.free(self.tx_ins);
+
+    for (self.tx_outs) |tx_out| tx_out.deinit();
     self.allocator.free(self.tx_outs);
 }
 
 pub fn toString(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
     var tx_ins = std.ArrayList(u8).init(allocator);
-    for (self.tx_ins) |tx_in| {
+    defer tx_ins.deinit();
+
+    for (self.tx_ins, 0..) |tx_in, i| {
         const tx_in_string = try tx_in.toString(allocator);
         defer allocator.free(tx_in_string);
 
         try tx_ins.appendSlice(tx_in_string);
+
+        if (self.tx_ins.len - 1 != i) {
+            try tx_ins.append(' ');
+        }
     }
 
     var tx_outs = std.ArrayList(u8).init(allocator);
-    for (self.tx_outs) |tx_out| {
+    defer tx_outs.deinit();
+
+    for (self.tx_outs, 0..) |tx_out, i| {
         const tx_out_string = try tx_out.toString(allocator);
         defer allocator.free(tx_out_string);
 
         try tx_outs.appendSlice(tx_out_string);
+
+        if (self.tx_outs.len - 1 != i) {
+            try tx_outs.append(' ');
+        }
     }
 
     const tx_id = try self.id();
 
-    return std.fmt.allocPrint(allocator, "tx: {s}\nversion: {d}\ntx_ins: {s}\ntx_outs: {s}\nlocktime: {d}", .{ tx_id, self.version, try tx_ins.toOwnedSlice(), try tx_outs.toOwnedSlice(), self.locktime });
+    return std.fmt.allocPrint(allocator, "tx: {s}\nversion: {d}\ntx_ins: {s}\ntx_outs: {s}\nlocktime: {d}", .{ tx_id, self.version, tx_ins.items, tx_outs.items, self.locktime });
 }
 
 pub fn id(self: Transaction) ![64]u8 {
@@ -166,7 +171,13 @@ pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, input_index: u
     const sig = try std.mem.concat(self.allocator, u8, &.{ der, &.{SIGHASH_ALL} });
     const sec = privateKey.point.toCompressedSec();
 
-    const script_sig = try Script.init(self.allocator, &.{ Script.Cmd{ .element = sig }, Script.Cmd{ .element = try self.allocator.dupe(u8, &sec) } });
+    var cmds = std.ArrayList(Script.Cmd).init(self.allocator);
+    try cmds.appendSlice(&.{ Script.Cmd{ .element = sig }, Script.Cmd{
+        .element = try self.allocator.dupe(u8, &sec),
+    } });
+
+    const script_sig = try Script.init(self.allocator, cmds);
+    self.tx_ins[input_index].script_sig.deinit();
     self.tx_ins[input_index].script_sig = script_sig;
 
     return self.verifyInput(fetcher, input_index);
@@ -206,23 +217,23 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8, testnet: bool) !T
     var fb = std.io.fixedBufferStream(source);
     const reader = fb.reader();
 
-    const version = utils.readIntFromReader(u32, reader, .little) catch return Error.InvalidEncoding;
+    const version = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
 
-    const num_inputs = utils.readVarintFromReader(reader) catch return Error.InvalidEncoding;
+    const num_inputs = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
     const inputs = try allocator.alloc(TransactionInput, num_inputs);
     for (0..num_inputs) |i| {
         inputs[i] = try TransactionInput.parseFromReader(allocator, reader);
     }
 
-    const num_outputs = utils.readVarintFromReader(reader) catch return Error.InvalidEncoding;
+    const num_outputs = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
     const outputs = try allocator.alloc(TransactionOutput, num_outputs);
     for (0..num_outputs) |i| {
         outputs[i] = try TransactionOutput.parseFromReader(allocator, reader);
     }
 
-    const locktime = utils.readIntFromReader(u32, reader, .little) catch return Error.InvalidEncoding;
+    const locktime = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
 
-    return init(allocator, version, inputs, outputs, locktime, testnet);
+    return .{ .allocator = allocator, .version = version, .inputs = inputs, .outputs = outputs, .locktime = locktime, .testnet = testnet };
 }
 
 const testing = std.testing;
