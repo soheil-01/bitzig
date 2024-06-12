@@ -18,7 +18,7 @@ pub const Cmd = union(enum) {
 
     pub fn clone(self: Cmd, allocator: std.mem.Allocator) !Cmd {
         switch (self) {
-            .opcode => return self,
+            .opcode => |opcode| return .{ .opcode = opcode },
             .element => |element| {
                 const element_copy = try allocator.dupe(u8, element);
                 return .{ .element = element_copy };
@@ -30,8 +30,12 @@ pub const Cmd = union(enum) {
 allocator: std.mem.Allocator,
 cmds: std.ArrayList(Cmd),
 
-pub fn init(allocator: std.mem.Allocator, cmds: ?std.ArrayList(Cmd)) !Script {
-    return .{ .allocator = allocator, .cmds = cmds orelse std.ArrayList(Cmd).init(allocator) };
+pub fn init(allocator: std.mem.Allocator) !Script {
+    return .{ .allocator = allocator, .cmds = std.ArrayList(Cmd).init(allocator) };
+}
+
+pub fn push(self: Script, cmd: Cmd) !void {
+    try self.cmds.append(try cmd.clone(self.allocator));
 }
 
 pub fn p2pkhScript(allocator: std.mem.Allocator, h160: [20]u8) !Script {
@@ -175,7 +179,7 @@ pub fn evaluate(self: Script, z: u256) !bool {
                 }
             },
             .element => |element| {
-                try stack.append(element);
+                try stack.append(try self.allocator.dupe(u8, element));
             },
         }
     }

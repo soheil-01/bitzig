@@ -169,14 +169,14 @@ pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, input_index: u
     const der = privateKey.sign(z).toDer(&der_buf);
 
     const sig = try std.mem.concat(self.allocator, u8, &.{ der, &.{SIGHASH_ALL} });
+    defer self.allocator.free(sig);
+
     const sec = privateKey.point.toCompressedSec();
 
-    var cmds = std.ArrayList(Script.Cmd).init(self.allocator);
-    try cmds.appendSlice(&.{ Script.Cmd{ .element = sig }, Script.Cmd{
-        .element = try self.allocator.dupe(u8, &sec),
-    } });
+    const script_sig = try Script.init(self.allocator);
+    try script_sig.push(.{ .element = sig });
+    try script_sig.push(.{ .element = &sec });
 
-    const script_sig = try Script.init(self.allocator, cmds);
     self.tx_ins[input_index].script_sig.deinit();
     self.tx_ins[input_index].script_sig = script_sig;
 
