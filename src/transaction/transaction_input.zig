@@ -13,7 +13,7 @@ script_sig: Script,
 sequence: u32,
 
 pub fn init(allocator: std.mem.Allocator, prev_tx: [32]u8, prev_index: u32, script_sig: ?Script, sequence: ?u32) !TransactionInput {
-    return .{ .allocator = allocator, .prev_tx = prev_tx, .prev_index = prev_index, .script_sig = script_sig orelse try Script.init(allocator, null), .sequence = sequence orelse 0xffffffff };
+    return .{ .allocator = allocator, .prev_tx = prev_tx, .prev_index = prev_index, .script_sig = script_sig orelse try Script.init(allocator), .sequence = sequence orelse 0xffffffff };
 }
 
 pub fn deinit(self: TransactionInput) void {
@@ -38,8 +38,9 @@ pub fn value(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool
 
 pub fn scriptPubkey(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool) !Script {
     const transaction = try self.fetchTransaction(fetcher, testnet);
+    defer transaction.deinit();
 
-    return transaction.tx_outs[self.prev_index].script_pubkey;
+    return transaction.tx_outs[self.prev_index].script_pubkey.clone(self.allocator);
 }
 
 pub fn serialize(self: TransactionInput, allocator: std.mem.Allocator) ![]u8 {

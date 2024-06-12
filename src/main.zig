@@ -11,15 +11,11 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    // const secret_bytes = utils.hash256("soheil bitcoin wallet super secret private key");
-    // const secret = std.mem.readInt(u256, &secret_bytes, .little);
+    const private_key = ecc.PrivateKey.init(8675309);
 
-    // const private_key = ecc.PrivateKey.init(secret);
-
-    // var address_buf: [73]u8 = undefined;
-    // const address = private_key.point.address(&address_buf, true, true);
-
-    // _ = address;
+    var transactionFetcher = transaction.TransactionFetcher.init(allocator);
+    try transactionFetcher.loadCache("tx.cache");
+    defer transactionFetcher.deinit();
 
     const prev_tx = try utils.hexToBytes(allocator, "0d6fe5213c0b3291f208cba8bfb59b7476dffacc4e5cb66f6eb20a080843a299");
     defer allocator.free(prev_tx);
@@ -45,8 +41,25 @@ pub fn main() !void {
 
     const tx = try transaction.Transaction.init(allocator, 1, &tx_ins, &tx_outs, 0, true);
 
-    const tx_string = try tx.toString(allocator);
-    defer allocator.free(tx_string);
+    const z = try tx.sigHash(&transactionFetcher, 0);
 
-    std.debug.print("{s}\n", .{tx_string});
+    var der_buf: [72]u8 = undefined;
+    const der = private_key.sign(z).toDer(&der_buf);
+
+    const sig = try std.mem.concat(allocator, u8, &.{ der, &.{transaction.Transaction.SIGHASH_ALL} });
+    defer allocator.free(sig);
+
+    const sec = private_key.point.toCompressedSec();
+
+    var script_sig = try script.Script.init(allocator);
+    defer script_sig.deinit();
+    try script_sig.push(.{ .element = sig });
+    try script_sig.push(.{ .element = &sec });
+    tx.tx_ins[0].script_sig.deinit();
+    tx.tx_ins[0].script_sig = script_sig;
+
+    const tx_bytes = try tx.serialize(allocator);
+    defer allocator.free(tx_bytes);
+
+    std.debug.print("{s}\n", .{std.fmt.fmtSliceHexLower(tx_bytes)});
 }

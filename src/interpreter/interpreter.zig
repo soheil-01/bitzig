@@ -191,6 +191,8 @@ pub fn decodeNum(self: Interpreter, element: []const u8) !i512 {
     }
 
     var big_endian = try self.allocator.dupe(u8, element);
+    defer self.allocator.free(big_endian);
+
     std.mem.reverse(u8, big_endian);
 
     var negative = false;

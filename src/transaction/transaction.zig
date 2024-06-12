@@ -8,9 +8,9 @@ const Script = @import("../script/script.zig");
 
 const Transaction = @This();
 
-const SIGHASH_ALL = 1;
-const SIGHASH_NONE = 2;
-const SIGHASH_SINGLE = 3;
+pub const SIGHASH_ALL = 1;
+pub const SIGHASH_NONE = 2;
+pub const SIGHASH_SINGLE = 3;
 
 allocator: std.mem.Allocator,
 version: u32,
@@ -108,10 +108,13 @@ pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, input_index: usi
 
     for (self.tx_ins, 0..) |tx_in, i| {
         const script_sig = if (input_index == i) try tx_in.scriptPubkey(fetcher, self.testnet) else null;
-        const serialized_tx_in = try (try TransactionInput.init(self.allocator, tx_in.prev_tx, tx_in.prev_index, script_sig, tx_in.sequence)).serialize(self.allocator);
-        defer self.allocator.free(serialized_tx_in);
+        const tmp_tx_in = try TransactionInput.init(self.allocator, tx_in.prev_tx, tx_in.prev_index, script_sig, tx_in.sequence);
+        defer tmp_tx_in.deinit();
 
-        try result.appendSlice(serialized_tx_in);
+        const serialized_tmp_tx_in = try tmp_tx_in.serialize(self.allocator);
+        defer self.allocator.free(serialized_tmp_tx_in);
+
+        try result.appendSlice(serialized_tmp_tx_in);
     }
 
     const num_outputs = try utils.encodeVarint(self.allocator, self.tx_outs.len);
@@ -140,10 +143,15 @@ pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, input_index: usi
 pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index: usize) !bool {
     const tx_in = self.tx_ins[input_index];
     const script_pubkey = try tx_in.scriptPubkey(fetcher, self.testnet);
+    defer script_pubkey.deinit();
+
     const z = try self.sigHash(fetcher, input_index);
 
     const combined = try tx_in.script_sig.add(script_pubkey, self.allocator);
     defer combined.deinit();
+
+    const string = try combined.toString(self.allocator);
+    defer self.allocator.free(string);
 
     return combined.evaluate(z);
 }
@@ -173,7 +181,7 @@ pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, input_index: u
 
     const sec = privateKey.point.toCompressedSec();
 
-    const script_sig = try Script.init(self.allocator);
+    var script_sig = try Script.init(self.allocator);
     try script_sig.push(.{ .element = sig });
     try script_sig.push(.{ .element = &sec });
 
@@ -233,7 +241,7 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8, testnet: bool) !T
 
     const locktime = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
 
-    return .{ .allocator = allocator, .version = version, .inputs = inputs, .outputs = outputs, .locktime = locktime, .testnet = testnet };
+    return .{ .allocator = allocator, .version = version, .tx_ins = inputs, .tx_outs = outputs, .locktime = locktime, .testnet = testnet };
 }
 
 const testing = std.testing;

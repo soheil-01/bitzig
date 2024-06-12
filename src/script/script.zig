@@ -34,7 +34,7 @@ pub fn init(allocator: std.mem.Allocator) !Script {
     return .{ .allocator = allocator, .cmds = std.ArrayList(Cmd).init(allocator) };
 }
 
-pub fn push(self: Script, cmd: Cmd) !void {
+pub fn push(self: *Script, cmd: Cmd) !void {
     try self.cmds.append(try cmd.clone(self.allocator));
 }
 
@@ -130,6 +130,8 @@ pub fn evaluate(self: Script, z: u256) !bool {
     var cmds = try self.cmds.clone();
     defer cmds.deinit();
 
+    std.mem.reverse(Cmd, cmds.items);
+
     var stack = std.ArrayList([]const u8).init(self.allocator);
     defer stack.deinit();
 
@@ -207,6 +209,17 @@ pub fn add(self: Script, other: Script, allocator: std.mem.Allocator) !Script {
     }
 
     for (other.cmds.items) |cmd| {
+        try cmds.append(try cmd.clone(allocator));
+    }
+
+    return .{ .allocator = allocator, .cmds = cmds };
+}
+
+pub fn clone(self: Script, allocator: std.mem.Allocator) !Script {
+    var cmds = std.ArrayList(Cmd).init(allocator);
+    errdefer cmds.deinit();
+
+    for (self.cmds.items) |cmd| {
         try cmds.append(try cmd.clone(allocator));
     }
 
