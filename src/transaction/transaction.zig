@@ -361,6 +361,26 @@ test "Transaction" {
         try testing.expect(input_value == want_value);
     }
 
+    // input pubkey
+    {
+        const tx_hash = try utils.hexToBytes(testing_alloc, "d1c789a9c60383bf715f3f6ad9d14b91fe55f3deb369fe5d9280cb1a01793f81");
+        defer testing_alloc.free(tx_hash);
+
+        const index: u32 = 0;
+
+        const tx_in = try TransactionInput.init(testing_alloc, std.mem.bytesToValue([32]u8, tx_hash), index, null, null);
+        const script_pubkey = try tx_in.scriptPubkey(&transactionFetcher, true);
+        defer script_pubkey.deinit();
+
+        const script_pubkey_serialized = try script_pubkey.serialize(testing_alloc);
+        defer testing_alloc.free(script_pubkey_serialized);
+
+        const expected = try utils.hexToBytes(testing_alloc, "1976a914a802fc56c704ce87c42d7c92eb75e7896bdc41ae88ac");
+        defer testing_alloc.free(expected);
+
+        try testing.expectEqualStrings(expected, script_pubkey_serialized);
+    }
+
     // fee
     {
         {
@@ -380,5 +400,50 @@ test "Transaction" {
             const tx_fee = try tx.fee(&transactionFetcher);
             try testing.expect(tx_fee == 140500);
         }
+    }
+
+    // sigHash
+    {
+        const tx = try transactionFetcher.fetchAndParse(testing_alloc, "452c629d67e41baec3ac6f04fe744b4b9617f8f859c63b3002f8684e7a4fee03", true, false);
+        defer tx.deinit();
+
+        const result = try tx.sigHash(&transactionFetcher, 0);
+        const expected = try std.fmt.parseInt(u256, "27e0c5994dec7824e56dec6b2fcb342eb7cdb0d0957c2fce9882f715e85d81a6", 16);
+
+        try testing.expectEqual(expected, result);
+    }
+
+    // verify p2pkh
+    {
+        {
+            const tx = try transactionFetcher.fetchAndParse(testing_alloc, "452c629d67e41baec3ac6f04fe744b4b9617f8f859c63b3002f8684e7a4fee03", true, false);
+            defer tx.deinit();
+            try testing.expect(try tx.verify(&transactionFetcher));
+        }
+
+        {
+            const tx = try transactionFetcher.fetchAndParse(testing_alloc, "5418099cc755cb9dd3ebc6cf1a7888ad53a1a3beb5a025bce89eb1bf7f1650a2", true, false);
+            defer tx.deinit();
+            try testing.expect(try tx.verify(&transactionFetcher));
+        }
+    }
+
+    // sign input
+    {
+        const private_key = PrivateKey.init(8675309);
+        const tx_bytes = try utils.hexToBytes(testing_alloc, "010000000199a24308080ab26e6fb65c4eccfadf76749bb5bfa8cb08f291320b3c21e56f0d0d00000000ffffffff02408af701000000001976a914d52ad7ca9b3d096a38e752c2018e6fbc40cdf26f88ac80969800000000001976a914507b27411ccf7f16f10297de6cef3f291623eddf88ac00000000");
+        defer testing_alloc.free(tx_bytes);
+
+        const tx = try Transaction.parse(testing_alloc, tx_bytes, true);
+        defer tx.deinit();
+
+        try testing.expect(try tx.signInput(&transactionFetcher, 0, private_key));
+
+        const serialized_tx = try tx.serialize(testing_alloc);
+        defer testing_alloc.free(serialized_tx);
+        const expected = try utils.hexToBytes(testing_alloc, "010000000199a24308080ab26e6fb65c4eccfadf76749bb5bfa8cb08f291320b3c21e56f0d0d0000006b4830450221008ed46aa2cf12d6d81065bfabe903670165b538f65ee9a3385e6327d80c66d3b502203124f804410527497329ec4715e18558082d489b218677bd029e7fa306a72236012103935581e52c354cd2f484fe8ed83af7a3097005b2f9c60bff71d35bd795f54b67ffffffff02408af701000000001976a914d52ad7ca9b3d096a38e752c2018e6fbc40cdf26f88ac80969800000000001976a914507b27411ccf7f16f10297de6cef3f291623eddf88ac00000000");
+        defer testing_alloc.free(expected);
+
+        try testing.expectEqualStrings(expected, serialized_tx);
     }
 }
