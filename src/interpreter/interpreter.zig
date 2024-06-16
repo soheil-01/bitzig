@@ -31,6 +31,7 @@ pub const table: [256]InstructionPtr = init: {
                 .OP_EQUAL => opEqual,
                 .OP_VERIFY => opVerify,
                 .OP_EQUALVERIFY => opEqualVerify,
+                .OP_CHECKMULTISIG => opCheckMultiSig,
                 else => notFound,
             };
         }
@@ -93,6 +94,72 @@ fn opDup(self: Interpreter, options: Options) !bool {
     try options.stack.append(last);
 
     return true;
+}
+
+fn opCheckMultiSig(self: Interpreter, options: Options) !bool {
+    if (options.z == null) {
+        return error.MissingZOption;
+    }
+    const z = options.z.?;
+
+    if (options.stack.items.len < 1) {
+        return false;
+    }
+
+    const n = try self.decodeNum(options.stack.pop());
+    if (options.stack.items.len < n + 1) {
+        return false;
+    }
+
+    var sec_pubkeys = try std.ArrayList([]const u8).initCapacity(self.allocator, n);
+    defer sec_pubkeys.deinit();
+
+    for (0..n) |_| {
+        try sec_pubkeys.append(options.stack.pop());
+    }
+
+    const m = try self.decodeNum(options.stack.pop());
+    if (options.stack.items.len < m + 1) {
+        return false;
+    }
+
+    var der_signatures = try std.ArrayList([]const u8).initCapacity(self.allocator, m);
+    defer der_signatures.deinit();
+
+    for (0..m) |_| {
+        try der_signatures.append(options.stack.pop());
+    }
+
+    _ = options.stack.pop();
+
+    var points = try std.ArrayList(S256Point).initCapacity(self.allocator, n);
+    defer points.deinit();
+
+    for (sec_pubkeys) |sec_pubkey| {
+        try points.append(try S256Point.fromSec(sec_pubkey));
+    }
+
+    std.mem.reverse(S256Point, points.items);
+
+    var sigs = try std.ArrayList(Signature).initCapacity(self.allocator, m);
+    defer sigs.deinit();
+
+    for (der_signatures) |der_signature| {
+        try sigs.append(der_signature);
+    }
+
+    for (sigs) |sig| {
+        if (points.items.len == 0) {
+            // TODO: log error
+            return false;
+        }
+
+        while (points.popOrNull()) |point| {
+            if (try point.verify(z, sig)) break;
+        }
+    }
+
+    try options.stack.append(try self.encodeNum(1));
 }
 
 fn opCheckSig(self: Interpreter, options: Options) !bool {
