@@ -182,6 +182,36 @@ pub fn evaluate(self: Script, z: u256) !bool {
             },
             .element => |element| {
                 try stack.append(try self.allocator.dupe(u8, element));
+                if (cmds.items.len == 3 and
+                    cmds.items[0] == .opcode and
+                    cmds.items[0].opcode == .OP_HASH160 and
+                    cmds.items[1] == .element and
+                    cmds.items[1].element.len == 20 and
+                    cmds.items[2] == .opcode and
+                    cmds.items[2].opcode == .OP_EQUAL)
+                {
+                    _ = cmds.pop();
+
+                    if (!Interpreter.table[@intFromEnum(.OP_HASH160)](self, .{ .stack = &stack })) {
+                        return false;
+                    }
+
+                    const h160 = cmds.pop();
+                    _ = cmds.pop();
+
+                    try stack.append(h160);
+
+                    if (!Interpreter.table[@intFromEnum(.OP_EQUALVERIFY)](self, .{ .stack = &stack })) {
+                        return false;
+                    }
+
+                    const element_len = try utils.encodeVarint(self.allocator, element.len);
+                    const script = try Script.parse(
+                        self.allocator,
+                        try std.mem.concat(self.allocator, u8, &.{ element_len, element }),
+                    );
+                    try cmds.appendSlice(script.cmds.items);
+                }
             },
         }
     }
