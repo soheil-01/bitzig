@@ -5,15 +5,13 @@ const assert = std.debug.assert;
 
 const FieldElement = @This();
 
-pub const Error = error{NumNotInFieldRange};
-
 num: u256,
 prime: u256,
 
 pub fn init(num: u256, prime: u256) !FieldElement {
-    // 0 < num < prime
+    // 0 <= num < prime
     if (num >= prime) {
-        return Error.NumNotInFieldRange;
+        return error.NumNotInFieldRange;
     }
 
     return .{ .num = num, .prime = prime };

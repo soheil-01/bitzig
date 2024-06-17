@@ -4,8 +4,6 @@ const assert = std.debug.assert;
 
 const Point = @This();
 
-pub const Error = error{NotOnTheCurve};
-
 x: ?FieldElement,
 y: ?FieldElement,
 a: FieldElement,
@@ -19,7 +17,7 @@ pub fn init(x: ?FieldElement, y: ?FieldElement, a: FieldElement, b: FieldElement
         const right_side = x.?.pow(3).add(a.mul(x.?)).add(b);
 
         if (left_side.neql(right_side)) {
-            return Error.NotOnTheCurve;
+            return error.NotOnTheCurve;
         }
     }
 
@@ -152,7 +150,7 @@ test "Point: on the curve" {
         const y = try FieldElement.init(p.y, prime);
 
         const point = Point.init(x, y, a, b);
-        try testing.expectError(Error.NotOnTheCurve, point);
+        try testing.expectError(error.NotOnTheCurve, point);
     }
 }
 

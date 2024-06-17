@@ -18,7 +18,6 @@ const gx = constants.secp256k1_gx;
 const gy = constants.secp256k1_gy;
 
 pub const G = S256Point.init(gx, gy) catch unreachable;
-pub const Error = error{InvalidEncoding} || Point.Error || FieldElement.Error;
 
 inner: Point,
 
@@ -106,7 +105,7 @@ pub fn toCompressedSec(self: S256Point) [33]u8 {
 
 pub fn fromSec(s: []const u8) !S256Point {
     if (s.len < 1) {
-        return Error.InvalidEncoding;
+        return error.InvalidEncoding;
     }
 
     const encoding_type = s[0];
@@ -114,7 +113,7 @@ pub fn fromSec(s: []const u8) !S256Point {
     switch (encoding_type) {
         4 => {
             if (s.len != 65) {
-                return Error.InvalidEncoding;
+                return error.InvalidEncoding;
             }
 
             const x = std.mem.readInt(u256, s[1..33], .big);
@@ -124,7 +123,7 @@ pub fn fromSec(s: []const u8) !S256Point {
         },
         2, 3 => {
             if (s.len != 33) {
-                return Error.InvalidEncoding;
+                return error.InvalidEncoding;
             }
 
             const x = try initS256Field(std.mem.readInt(u256, s[1..33], .big));
@@ -150,7 +149,7 @@ pub fn fromSec(s: []const u8) !S256Point {
             return S256Point.init(x.num, odd_y);
         },
         else => {
-            return Error.InvalidEncoding;
+            return error.InvalidEncoding;
         },
     }
 }
