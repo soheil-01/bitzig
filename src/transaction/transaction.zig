@@ -95,7 +95,7 @@ pub fn fee(self: Transaction, fetcher: *TransactionFetcher) !u64 {
     return input_sum - output_sum;
 }
 
-pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, input_index: usize) !u256 {
+pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, input_index: usize, redeem_script: ?Script) !u256 {
     var result = std.ArrayList(u8).init(self.allocator);
     defer result.deinit();
 
@@ -107,7 +107,7 @@ pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, input_index: usi
     try result.appendSlice(num_inputs);
 
     for (self.tx_ins, 0..) |tx_in, i| {
-        const script_sig = if (input_index == i) try tx_in.scriptPubkey(fetcher, self.testnet) else null;
+        const script_sig = if (input_index == i) if (redeem_script) |script| script else try tx_in.scriptPubkey(fetcher, self.testnet) else null;
         const tmp_tx_in = try TransactionInput.init(self.allocator, tx_in.prev_tx, tx_in.prev_index, script_sig, tx_in.sequence);
         defer tmp_tx_in.deinit();
 
@@ -145,7 +145,18 @@ pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index:
     const script_pubkey = try tx_in.scriptPubkey(fetcher, self.testnet);
     defer script_pubkey.deinit();
 
-    const z = try self.sigHash(fetcher, input_index);
+    var redeem_script: ?Script = null;
+
+    if (script_pubkey.isP2shScriptPubkey()) {
+        // the last cmd in a p2sh is the redeem script
+        const cmd = tx_in.script_sig.cmds.getLast().element;
+        const cmd_len = try utils.encodeVarint(self.allocator, cmd.len);
+        const raw_redeem = try std.mem.concat(self.allocator, u8, &.{ &.{cmd_len}, cmd });
+        defer self.allocator.free(raw_redeem);
+        redeem_script = try Script.parse(self.allocator, raw_redeem);
+    }
+
+    const z = try self.sigHash(fetcher, input_index, redeem_script);
 
     const combined = try tx_in.script_sig.add(script_pubkey, self.allocator);
     defer combined.deinit();

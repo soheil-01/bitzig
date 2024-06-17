@@ -51,6 +51,17 @@ pub fn p2pkhScript(allocator: std.mem.Allocator, h160: [20]u8) !Script {
     return .{ .allocator = allocator, .cmds = cmds };
 }
 
+pub fn p2shScript(allocator: std.mem.Allocator, h160: [20]u8) !Script {
+    var cmds = std.ArrayList(Cmd).init(allocator);
+    try cmds.appendSlice(&.{
+        Cmd{ .opcode = .OP_HASH160 },
+        Cmd{ .element = try allocator.dupe(u8, &h160) },
+        Cmd{ .opcode = .OP_EQUAL },
+    });
+
+    return .{ .allocator = allocator, .cmds = cmds };
+}
+
 pub fn deinit(self: Script) void {
     for (self.cmds.items) |cmd| cmd.free(self.allocator);
     self.cmds.deinit();
@@ -100,6 +111,32 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !Script {
     }
 
     return .{ .allocator = allocator, .cmds = cmds };
+}
+
+pub fn isP2pkhScriptPubkey(self: Script) bool {
+    // OP_DUP OP_HASH160 <20-byte hash> OP_EQUALVERIFY OP_CHECKSIG
+    return self.cmds.items.len == 5 and
+        self.cmds[0] == .opcode and
+        self.cmds[0].opcode == .OP_DUP and
+        self.cmds[1] == .opcode and
+        self.cmds[1].opcode == .OP_HASH160 and
+        self.cmds[2] == .element and
+        self.cmds[2].element.len == 20 and
+        self.cmds[3] == .opcode and
+        self.cmds[3].opcode == .OP_EQUALVERIFY and
+        self.cmds[4] == .opcode and
+        self.cmds[4].opcode == .OP_CHECKSIG;
+}
+
+pub fn isP2shScriptPubkey(self: Script) bool {
+    // OP_HASH160 <20-byte hash> OP_EQUAL
+    return self.cmds.items.len == 3 and
+        self.cmds.items[0] == .opcode and
+        self.cmds.items[0].opcode == .OP_HASH160 and
+        self.cmds.items[1] == .element and
+        self.cmds.items[1].element.len == 20 and
+        self.cmds.items[2] == .opcode and
+        self.cmds.items[2].opcode == .OP_EQUAL;
 }
 
 pub fn toString(self: Script, allocator: std.mem.Allocator) ![]u8 {
@@ -206,10 +243,15 @@ pub fn evaluate(self: Script, z: u256) !bool {
                     }
 
                     const element_len = try utils.encodeVarint(self.allocator, element.len);
+                    const script_source = try std.mem.concat(self.allocator, u8, &.{ element_len, element });
+                    defer self.allocator.free(script_source);
+
                     const script = try Script.parse(
                         self.allocator,
-                        try std.mem.concat(self.allocator, u8, &.{ element_len, element }),
+                        script_source,
                     );
+                    defer self.allocator.free(script.cmds.items);
+
                     try cmds.appendSlice(script.cmds.items);
                 }
             },
