@@ -32,6 +32,8 @@ pub const table: [256]InstructionPtr = init: {
                 .OP_VERIFY => opVerify,
                 .OP_EQUALVERIFY => opEqualVerify,
                 .OP_CHECKMULTISIG => opCheckMultiSig,
+                .OP_0 => push(0),
+                .OP_1 => push(1),
                 else => notFound,
             };
         }
@@ -44,6 +46,17 @@ pub fn init(allocator: std.mem.Allocator) Interpreter {
     return .{
         .allocator = allocator,
     };
+}
+
+fn push(comptime n: comptime_int) InstructionPtr {
+    const pushT = struct {
+        fn push(self: Interpreter, options: Options) !bool {
+            try options.stack.append(try self.encodeNum(n));
+            return true;
+        }
+    };
+
+    return pushT.push;
 }
 
 fn opEqual(self: Interpreter, options: Options) !bool {
@@ -106,7 +119,7 @@ fn opCheckMultiSig(self: Interpreter, options: Options) !bool {
         return false;
     }
 
-    const n = try self.decodeNum(options.stack.pop());
+    const n: usize = @intCast(try self.decodeNum(options.stack.pop()));
     if (options.stack.items.len < n + 1) {
         return false;
     }
@@ -118,7 +131,7 @@ fn opCheckMultiSig(self: Interpreter, options: Options) !bool {
         try sec_pubkeys.append(options.stack.pop());
     }
 
-    const m = try self.decodeNum(options.stack.pop());
+    const m: usize = @intCast(try self.decodeNum(options.stack.pop()));
     if (options.stack.items.len < m + 1) {
         return false;
     }
@@ -135,7 +148,7 @@ fn opCheckMultiSig(self: Interpreter, options: Options) !bool {
     var points = try std.ArrayList(S256Point).initCapacity(self.allocator, n);
     defer points.deinit();
 
-    for (sec_pubkeys) |sec_pubkey| {
+    for (sec_pubkeys.items) |sec_pubkey| {
         try points.append(try S256Point.fromSec(sec_pubkey));
     }
 
@@ -144,22 +157,23 @@ fn opCheckMultiSig(self: Interpreter, options: Options) !bool {
     var sigs = try std.ArrayList(Signature).initCapacity(self.allocator, m);
     defer sigs.deinit();
 
-    for (der_signatures) |der_signature| {
-        try sigs.append(der_signature);
+    for (der_signatures.items) |der_signature| {
+        try sigs.append(try Signature.fromDer(der_signature));
     }
 
-    for (sigs) |sig| {
+    for (sigs.items) |sig| {
         if (points.items.len == 0) {
             // TODO: log error
             return false;
         }
 
         while (points.popOrNull()) |point| {
-            if (try point.verify(z, sig)) break;
+            if (point.verify(z, sig)) break;
         }
     }
 
     try options.stack.append(try self.encodeNum(1));
+    return true;
 }
 
 fn opCheckSig(self: Interpreter, options: Options) !bool {

@@ -184,11 +184,11 @@ pub fn hexToBytes(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
 }
 
 pub fn h160ToP2pkhAddress(dest: []u8, h160: [20]u8, testnet: bool) []u8 {
-    const prefix = if (testnet) 0x6f else 0x00;
+    const prefix: u8 = if (testnet) 0x6f else 0x00;
     return encodeBase58Checksum(dest, 21, [_]u8{prefix} ++ h160);
 }
 
 pub fn h160ToP2shAddress(dest: []u8, h160: [20]u8, testnet: bool) []u8 {
-    const prefix = if (testnet) 0xc4 else 0x05;
+    const prefix: u8 = if (testnet) 0xc4 else 0x05;
     return encodeBase58Checksum(dest, 21, [_]u8{prefix} ++ h160);
 }

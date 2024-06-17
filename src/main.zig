@@ -41,7 +41,7 @@ pub fn main() !void {
 
     const tx = try transaction.Transaction.init(allocator, 1, &tx_ins, &tx_outs, 0, true);
 
-    const z = try tx.sigHash(&transactionFetcher, 0);
+    const z = try tx.sigHash(&transactionFetcher, 0, null);
 
     var der_buf: [72]u8 = undefined;
     const der = private_key.sign(z).toDer(&der_buf);

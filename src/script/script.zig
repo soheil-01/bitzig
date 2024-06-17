@@ -114,29 +114,33 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !Script {
 }
 
 pub fn isP2pkhScriptPubkey(self: Script) bool {
+    const cmds = self.cmds.items;
+
     // OP_DUP OP_HASH160 <20-byte hash> OP_EQUALVERIFY OP_CHECKSIG
-    return self.cmds.items.len == 5 and
-        self.cmds[0] == .opcode and
-        self.cmds[0].opcode == .OP_DUP and
-        self.cmds[1] == .opcode and
-        self.cmds[1].opcode == .OP_HASH160 and
-        self.cmds[2] == .element and
-        self.cmds[2].element.len == 20 and
-        self.cmds[3] == .opcode and
-        self.cmds[3].opcode == .OP_EQUALVERIFY and
-        self.cmds[4] == .opcode and
-        self.cmds[4].opcode == .OP_CHECKSIG;
+    return cmds.len == 5 and
+        cmds[0] == .opcode and
+        cmds[0].opcode == .OP_DUP and
+        cmds[1] == .opcode and
+        cmds[1].opcode == .OP_HASH160 and
+        cmds[2] == .element and
+        cmds[2].element.len == 20 and
+        cmds[3] == .opcode and
+        cmds[3].opcode == .OP_EQUALVERIFY and
+        cmds[4] == .opcode and
+        cmds[4].opcode == .OP_CHECKSIG;
 }
 
 pub fn isP2shScriptPubkey(self: Script) bool {
+    const cmds = self.cmds.items;
+
     // OP_HASH160 <20-byte hash> OP_EQUAL
-    return self.cmds.items.len == 3 and
-        self.cmds.items[0] == .opcode and
-        self.cmds.items[0].opcode == .OP_HASH160 and
-        self.cmds.items[1] == .element and
-        self.cmds.items[1].element.len == 20 and
-        self.cmds.items[2] == .opcode and
-        self.cmds.items[2].opcode == .OP_EQUAL;
+    return cmds.len == 3 and
+        cmds[0] == .opcode and
+        cmds[0].opcode == .OP_HASH160 and
+        cmds[1] == .element and
+        cmds[1].element.len == 20 and
+        cmds[2] == .opcode and
+        cmds[2].opcode == .OP_EQUAL;
 }
 
 pub fn toString(self: Script, allocator: std.mem.Allocator) ![]u8 {
@@ -229,16 +233,16 @@ pub fn evaluate(self: Script, z: u256) !bool {
                 {
                     _ = cmds.pop();
 
-                    if (!Interpreter.table[@intFromEnum(.OP_HASH160)](self, .{ .stack = &stack })) {
+                    if (!try Interpreter.table[@intFromEnum(Opcode.OP_HASH160)](interpreter, .{ .stack = &stack })) {
                         return false;
                     }
 
                     const h160 = cmds.pop();
                     _ = cmds.pop();
 
-                    try stack.append(h160);
+                    try stack.append(h160.element);
 
-                    if (!Interpreter.table[@intFromEnum(.OP_EQUALVERIFY)](self, .{ .stack = &stack })) {
+                    if (!try Interpreter.table[@intFromEnum(Opcode.OP_EQUALVERIFY)](interpreter, .{ .stack = &stack })) {
                         return false;
                     }
 

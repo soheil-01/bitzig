@@ -151,7 +151,8 @@ pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index:
         // the last cmd in a p2sh is the redeem script
         const cmd = tx_in.script_sig.cmds.getLast().element;
         const cmd_len = try utils.encodeVarint(self.allocator, cmd.len);
-        const raw_redeem = try std.mem.concat(self.allocator, u8, &.{ &.{cmd_len}, cmd });
+        defer self.allocator.free(cmd_len);
+        const raw_redeem = try std.mem.concat(self.allocator, u8, &.{ cmd_len, cmd });
         defer self.allocator.free(raw_redeem);
         redeem_script = try Script.parse(self.allocator, raw_redeem);
     }
@@ -182,7 +183,7 @@ pub fn verify(self: Transaction, fetcher: *TransactionFetcher) !bool {
 }
 
 pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, input_index: usize, privateKey: PrivateKey) !bool {
-    const z = try self.sigHash(fetcher, input_index);
+    const z = try self.sigHash(fetcher, input_index, null);
 
     var der_buf: [72]u8 = undefined;
     const der = privateKey.sign(z).toDer(&der_buf);
@@ -418,7 +419,7 @@ test "Transaction" {
         const tx = try transactionFetcher.fetchAndParse(testing_alloc, "452c629d67e41baec3ac6f04fe744b4b9617f8f859c63b3002f8684e7a4fee03", true, false);
         defer tx.deinit();
 
-        const result = try tx.sigHash(&transactionFetcher, 0);
+        const result = try tx.sigHash(&transactionFetcher, 0, null);
         const expected = try std.fmt.parseInt(u256, "27e0c5994dec7824e56dec6b2fcb342eb7cdb0d0957c2fce9882f715e85d81a6", 16);
 
         try testing.expectEqual(expected, result);
@@ -427,7 +428,7 @@ test "Transaction" {
     // verify p2pkh
     {
         {
-            const tx = try transactionFetcher.fetchAndParse(testing_alloc, "452c629d67e41baec3ac6f04fe744b4b9617f8f859c63b3002f8684e7a4fee03", true, false);
+            const tx = try transactionFetcher.fetchAndParse(testing_alloc, "452c629d67e41baec3ac6f04fe744b4b9617f8f859c63b3002f8684e7a4fee03", false, false);
             defer tx.deinit();
             try testing.expect(try tx.verify(&transactionFetcher));
         }
@@ -437,6 +438,13 @@ test "Transaction" {
             defer tx.deinit();
             try testing.expect(try tx.verify(&transactionFetcher));
         }
+    }
+
+    // verify p2sh
+    {
+        const tx = try transactionFetcher.fetchAndParse(testing_alloc, "46df1a9484d0a81d03ce0ee543ab6e1a23ed06175c104a178268fad381216c2b", false, false);
+        defer tx.deinit();
+        try testing.expect(try tx.verify(&transactionFetcher));
     }
 
     // sign input
