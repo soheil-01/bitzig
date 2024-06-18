@@ -279,9 +279,9 @@ pub fn decodeNum(self: Interpreter, element: []const u8) !i512 {
     var negative = false;
     var result: i512 = big_endian[0];
 
-    if (big_endian[0] & 0x80 > 0) {
+    if (result & 0x80 > 0) {
         negative = true;
-        result = big_endian[0] & 0x7f;
+        result &= 0x7f;
     }
 
     for (big_endian[1..]) |c| {

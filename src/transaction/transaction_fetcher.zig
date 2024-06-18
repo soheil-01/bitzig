@@ -13,7 +13,11 @@ const mainnet_host = "https://bitcoin-mainnet.public.blastapi.io";
 const testnet_host = "https://bitcoin-testnet.public.blastapi.io";
 
 pub fn init(allocator: std.mem.Allocator) TransactionFetcher {
-    return .{ .allocator = allocator, .cache = std.StringHashMap([]const u8).init(allocator), .buf = std.ArrayList(u8).init(allocator) };
+    return .{
+        .allocator = allocator,
+        .cache = std.StringHashMap([]const u8).init(allocator),
+        .buf = std.ArrayList(u8).init(allocator),
+    };
 }
 
 pub fn deinit(self: *TransactionFetcher) void {

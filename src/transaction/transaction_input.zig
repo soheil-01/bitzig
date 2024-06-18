@@ -45,6 +45,7 @@ pub fn scriptPubkey(self: TransactionInput, fetcher: *TransactionFetcher, testne
 
 pub fn serialize(self: TransactionInput, allocator: std.mem.Allocator) ![]u8 {
     var result = std.ArrayList(u8).init(allocator);
+    errdefer result.deinit();
 
     var prev_tx = self.prev_tx;
     std.mem.reverse(u8, &prev_tx);
