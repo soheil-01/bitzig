@@ -19,7 +19,7 @@ pub fn init(secret: u256) PrivateKey {
 }
 
 pub fn toString(self: PrivateKey, allocator: std.mem.Allocator) ![]u8 {
-    return std.fmt.allocPrint(allocator, "{x}", .{self.secret});
+    return std.fmt.allocPrint(allocator, "0x{x}", .{self.secret});
 }
 
 pub fn sign(self: PrivateKey, z: u256) Signature {

@@ -6,8 +6,6 @@ const Signature = @This();
 r: u256,
 s: u256,
 
-pub const Error = error{InvalidEncoding};
-
 pub const der_encoded_max_length = 72;
 
 pub fn init(r: u256, s: u256) Signature {
@@ -15,7 +13,7 @@ pub fn init(r: u256, s: u256) Signature {
 }
 
 pub fn toString(self: Signature, allocator: std.mem.Allocator) ![]u8 {
-    return std.fmt.allocPrint(allocator, "Signature({x},{x})", .{ self.r, self.s });
+    return std.fmt.allocPrint(allocator, "Signature(0x{x},0x{x})", .{ self.r, self.s });
 }
 
 pub fn toDer(self: Signature, buf: *[der_encoded_max_length]u8) []u8 {
@@ -23,7 +21,7 @@ pub fn toDer(self: Signature, buf: *[der_encoded_max_length]u8) []u8 {
     const w = fb.writer();
 
     const r_bytes = utils.encodeInt(u256, self.r, .big);
-    const s_bytes: [32]u8 = utils.encodeInt(u256, self.s, .big);
+    const s_bytes = utils.encodeInt(u256, self.s, .big);
 
     const r_len = 32 + (r_bytes[0] >> 7);
     const s_len = 32 + (s_bytes[0] >> 7);
@@ -50,46 +48,46 @@ pub fn fromDer(der: []const u8) !Signature {
     var fb = std.io.fixedBufferStream(der);
     const reader = fb.reader();
 
-    const compound = reader.readByte() catch return Error.InvalidEncoding;
+    const compound = reader.readByte() catch return error.InvalidEncoding;
     if (compound != 0x30) {
-        return Error.InvalidEncoding;
+        return error.InvalidEncoding;
     }
 
-    const sig_len = reader.readByte() catch return Error.InvalidEncoding;
+    const sig_len = reader.readByte() catch return error.InvalidEncoding;
     if (sig_len + 2 != der.len) {
-        return Error.InvalidEncoding;
+        return error.InvalidEncoding;
     }
 
     const r = try readDerInt(reader);
     const s = try readDerInt(reader);
 
     if (fb.getPos() catch unreachable != der.len) {
-        return Error.InvalidEncoding;
+        return error.InvalidEncoding;
     }
 
     return init(r, s);
 }
 
 fn readDerInt(reader: anytype) !u256 {
-    const marker = reader.readByte() catch return Error.InvalidEncoding;
+    const marker = reader.readByte() catch return error.InvalidEncoding;
     if (marker != 0x02) {
-        return Error.InvalidEncoding;
+        return error.InvalidEncoding;
     }
 
     var buf: [32]u8 = undefined;
-    var len = reader.readByte() catch return Error.InvalidEncoding;
+    var len = reader.readByte() catch return error.InvalidEncoding;
     if (len == 0 or len > buf.len + 1) {
-        return Error.InvalidEncoding;
+        return error.InvalidEncoding;
     }
 
     if (len == buf.len + 1) {
-        if ((reader.readByte() catch return Error.InvalidEncoding) != 0) {
-            return Error.InvalidEncoding;
+        if ((reader.readByte() catch return error.InvalidEncoding) != 0) {
+            return error.InvalidEncoding;
         }
         len -= 1;
     }
 
-    reader.readNoEof(&buf) catch return Error.InvalidEncoding;
+    reader.readNoEof(&buf) catch return error.InvalidEncoding;
 
     return std.mem.readInt(u256, &buf, .big);
 }
