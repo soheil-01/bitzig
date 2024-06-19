@@ -23,12 +23,14 @@ pub fn init(allocator: std.mem.Allocator, version: u32, tx_ins: []TransactionInp
     return .{ .allocator = allocator, .version = version, .tx_ins = tx_ins, .tx_outs = tx_outs, .locktime = locktime orelse 0xffffffff, .testnet = testnet };
 }
 
-pub fn deinit(self: Transaction) void {
+pub fn deinit(self: Transaction, free_tx_slices: bool) void {
     for (self.tx_ins) |tx_in| tx_in.deinit();
-    self.allocator.free(self.tx_ins);
-
     for (self.tx_outs) |tx_out| tx_out.deinit();
-    self.allocator.free(self.tx_outs);
+
+    if (free_tx_slices) {
+        self.allocator.free(self.tx_ins);
+        self.allocator.free(self.tx_outs);
+    }
 }
 
 pub fn toString(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
@@ -237,6 +239,10 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8, testnet: bool) !T
     var fb = std.io.fixedBufferStream(source);
     const reader = fb.reader();
 
+    return parseFromReader(allocator, reader, testnet);
+}
+
+pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype, testnet: bool) !Transaction {
     const version = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
 
     const num_inputs = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
@@ -282,7 +288,7 @@ test "Transaction" {
         defer testing_alloc.free(tx_bytes);
 
         const tx = try Transaction.parse(testing_alloc, tx_bytes, false);
-        defer tx.deinit();
+        defer tx.deinit(true);
 
         try testing.expect(tx.tx_ins.len == 1);
 

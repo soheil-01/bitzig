@@ -38,7 +38,7 @@ pub fn value(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool
 
 pub fn scriptPubkey(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool) !Script {
     const transaction = try self.fetchTransaction(fetcher, testnet);
-    defer transaction.deinit();
+    defer transaction.deinit(true);
 
     return transaction.tx_outs[self.prev_index].script_pubkey.clone(self.allocator);
 }

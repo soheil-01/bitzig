@@ -38,7 +38,7 @@ pub fn fetchAndParse(self: *TransactionFetcher, allocator: std.mem.Allocator, tx
     defer self.allocator.free(transaction_bytes);
 
     var transaction: Transaction = undefined;
-    errdefer transaction.deinit();
+    errdefer transaction.deinit(true);
 
     if (transaction_bytes[4] == 0) {
         const raw_transaction = try std.mem.concat(self.allocator, u8, &.{ transaction_bytes[0..4], transaction_bytes[6..] });
