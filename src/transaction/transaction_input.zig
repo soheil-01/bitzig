@@ -31,7 +31,7 @@ pub fn fetchTransaction(self: TransactionInput, fetcher: *TransactionFetcher, te
 
 pub fn value(self: TransactionInput, fetcher: *TransactionFetcher, testnet: bool) !u64 {
     const transaction = try self.fetchTransaction(fetcher, testnet);
-    defer transaction.deinit();
+    defer transaction.deinit(true);
 
     return transaction.tx_outs[self.prev_index].amount;
 }

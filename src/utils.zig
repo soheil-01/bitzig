@@ -29,17 +29,25 @@ pub fn modPow(a: u256, b: u256, mod: u256) u256 {
     return result;
 }
 
-pub fn encodeBase58(dest: []u8, source: []const u8) []u8 {
-    assert(source.len <= 128);
+pub fn readIntWithPadding(comptime T: type, source: []const u8, endian: std.builtin.Endian) T {
+    const byte_count = @divExact(@typeInfo(T).Int.bits, 8);
+    assert(source.len <= byte_count);
 
-    var source_extended: [128]u8 = undefined;
-    if (source.len != 128) {
-        source_extended = [_]u8{0} ** 128;
+    var padded_source: [byte_count]u8 = undefined;
+    if (source.len != byte_count) {
+        padded_source = [_]u8{0} ** byte_count;
     }
 
-    std.mem.copyForwards(u8, source_extended[(128 - source.len)..], source);
+    std.mem.copyForwards(u8, switch (endian) {
+        .big => padded_source[byte_count - source.len ..],
+        .little => padded_source[0..source.len],
+    }, source);
 
-    var num = std.mem.readInt(u1024, &source_extended, .big);
+    return std.mem.readInt(T, &padded_source, endian);
+}
+
+pub fn encodeBase58(dest: []u8, source: []const u8) []u8 {
+    var num = readIntWithPadding(u1024, source, .big);
 
     var i = dest.len;
     while (num > 0) : (num /= 58) {
