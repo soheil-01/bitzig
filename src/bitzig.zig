@@ -25,6 +25,10 @@ pub const interpreter = struct {
     pub usingnamespace @import("interpreter/opcode.zig");
 };
 
+pub const block = struct {
+    pub const Block = @import("block/block.zig");
+};
+
 test {
     @import("std").testing.refAllDeclsRecursive(@This());
 }

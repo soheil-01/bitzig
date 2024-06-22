@@ -200,3 +200,13 @@ pub fn h160ToP2shAddress(dest: []u8, h160: [20]u8, testnet: bool) []u8 {
     const prefix: u8 = if (testnet) 0xc4 else 0x05;
     return encodeBase58Checksum(dest, 21, [_]u8{prefix} ++ h160);
 }
+
+pub fn bitsToTarget(bits: [4]u8) u256 {
+    const exponent = bits[3];
+    const coefficient = std.mem.readInt(u24, bits[0..3], .little);
+
+    var target: u256 = coefficient;
+    target *= std.math.pow(u256, 256, exponent - 3);
+
+    return target;
+}
