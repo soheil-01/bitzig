@@ -115,7 +115,7 @@ test "PrivateKey: wif" {
         const pk = PrivateKey.init(secret);
         const expected = "L5oLkpV3aqBJ4BgssVAsax1iRa77G5CVYnv9adQ6Z87te7TyUdSC";
         const wif = pk.toCompressedWif(&wif_buffer, false);
-        try testing.expectEqualStrings(expected, wif);
+        try testing.expectEqualSlices(u8, expected, wif);
     }
 
     {
@@ -123,7 +123,7 @@ test "PrivateKey: wif" {
         const pk = PrivateKey.init(secret);
         const expected = "93XfLeifX7Jx7n7ELGMAf1SUR6f9kgQs8Xke8WStMwUtrDucMzn";
         const wif = pk.toUncompressedWif(&wif_buffer, true);
-        try testing.expectEqualStrings(expected, wif);
+        try testing.expectEqualSlices(u8, expected, wif);
     }
 
     {
@@ -131,7 +131,7 @@ test "PrivateKey: wif" {
         const pk = PrivateKey.init(secret);
         const expected = "5HvLFPDVgFZRK9cd4C5jcWki5Skz6fmKqi1GQJf5ZoMofid2Dty";
         const wif = pk.toUncompressedWif(&wif_buffer, false);
-        try testing.expectEqualStrings(expected, wif);
+        try testing.expectEqualSlices(u8, expected, wif);
     }
 
     {
@@ -139,6 +139,6 @@ test "PrivateKey: wif" {
         const pk = PrivateKey.init(secret);
         const expected = "cNYfWuhDpbNM1JWc3c6JTrtrFVxU4AGhUKgw5f93NP2QaBqmxKkg";
         const wif = pk.toCompressedWif(&wif_buffer, true);
-        try testing.expectEqualStrings(expected, wif);
+        try testing.expectEqualSlices(u8, expected, wif);
     }
 }

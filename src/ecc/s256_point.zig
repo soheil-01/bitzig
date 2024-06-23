@@ -220,8 +220,8 @@ test "S256Point: sec" {
         const compressed = [_]u8{ 3, 157, 92, 164, 150, 112, 203, 228, 195, 191, 168, 76, 150, 168, 200, 125, 240, 134, 198, 234, 106, 36, 186, 107, 128, 156, 157, 226, 52, 73, 104, 8, 213 };
         const point = G.rmul(coef);
 
-        try testing.expectEqualStrings(&uncompressed, &point.toUncompressedSec());
-        try testing.expectEqualStrings(&compressed, &point.toCompressedSec());
+        try testing.expectEqualSlices(u8, &uncompressed, &point.toUncompressedSec());
+        try testing.expectEqualSlices(u8, &compressed, &point.toCompressedSec());
     }
 
     {
@@ -230,8 +230,8 @@ test "S256Point: sec" {
         const compressed = [_]u8{ 3, 165, 152, 168, 3, 13, 166, 216, 108, 107, 199, 242, 245, 20, 78, 165, 73, 210, 130, 17, 234, 88, 250, 167, 14, 191, 76, 30, 102, 92, 31, 233, 181 };
         const point = G.rmul(coef);
 
-        try testing.expectEqualStrings(&uncompressed, &point.toUncompressedSec());
-        try testing.expectEqualStrings(&compressed, &point.toCompressedSec());
+        try testing.expectEqualSlices(u8, &uncompressed, &point.toUncompressedSec());
+        try testing.expectEqualSlices(u8, &compressed, &point.toCompressedSec());
     }
 
     {
@@ -240,8 +240,8 @@ test "S256Point: sec" {
         const compressed = [_]u8{ 3, 174, 226, 231, 216, 67, 247, 67, 0, 151, 133, 158, 43, 198, 3, 171, 204, 50, 116, 255, 129, 105, 193, 164, 105, 254, 224, 242, 6, 20, 6, 111, 142 };
         const point = G.rmul(coef);
 
-        try testing.expectEqualStrings(&uncompressed, &point.toUncompressedSec());
-        try testing.expectEqualStrings(&compressed, &point.toCompressedSec());
+        try testing.expectEqualSlices(u8, &uncompressed, &point.toUncompressedSec());
+        try testing.expectEqualSlices(u8, &compressed, &point.toCompressedSec());
     }
 }
 
@@ -254,10 +254,10 @@ test "S256Point: address" {
 
         var buf: [34]u8 = undefined;
         var addr = point.address(&buf, true, false);
-        try testing.expectEqualStrings(mainnet_address, addr);
+        try testing.expectEqualSlices(u8, mainnet_address, addr);
 
         addr = point.address(&buf, true, true);
-        try testing.expectEqualStrings(testnet_address, addr);
+        try testing.expectEqualSlices(u8, testnet_address, addr);
     }
 
     {
@@ -268,10 +268,10 @@ test "S256Point: address" {
 
         var buf: [34]u8 = undefined;
         var addr = point.address(&buf, false, false);
-        try testing.expectEqualStrings(mainnet_address, addr);
+        try testing.expectEqualSlices(u8, mainnet_address, addr);
 
         addr = point.address(&buf, false, true);
-        try testing.expectEqualStrings(testnet_address, addr);
+        try testing.expectEqualSlices(u8, testnet_address, addr);
     }
 
     {
@@ -282,9 +282,9 @@ test "S256Point: address" {
 
         var buf: [34]u8 = undefined;
         var addr = point.address(&buf, false, false);
-        try testing.expectEqualStrings(mainnet_address, addr);
+        try testing.expectEqualSlices(u8, mainnet_address, addr);
 
         addr = point.address(&buf, false, true);
-        try testing.expectEqualStrings(testnet_address, addr);
+        try testing.expectEqualSlices(u8, testnet_address, addr);
     }
 }

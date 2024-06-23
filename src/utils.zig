@@ -4,6 +4,8 @@ const c = @cImport({
 });
 
 const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const TWO_WEEKS = 60 * 60 * 24 * 14;
+const MAX_TARGET: u256 = 0xffff * std.math.pow(u256, 256, 0x1d - 3);
 
 const assert = std.debug.assert;
 const Sha256 = std.crypto.hash.sha2.Sha256;
@@ -209,4 +211,64 @@ pub fn bitsToTarget(bits: [4]u8) u256 {
     target *= std.math.pow(u256, 256, exponent - 3);
 
     return target;
+}
+
+pub fn targetToBits(target: u256) [4]u8 {
+    var raw_bytes = encodeInt(u256, target, .big);
+
+    var i: usize = 0;
+    for (raw_bytes) |byte| {
+        if (byte == 0) {
+            i += 1;
+        } else break;
+    }
+
+    const bytes = raw_bytes[i..];
+    const bytes_len: u8 = @intCast(bytes.len);
+
+    var exponent: u8 = 0;
+    var coefficient: [3]u8 = undefined;
+
+    if (bytes[0] > 0x7f) {
+        exponent = bytes_len + 1;
+        coefficient = [_]u8{0} ++ bytes[0..2].*;
+    } else {
+        exponent = bytes_len;
+        coefficient = bytes[0..3].*;
+    }
+
+    std.mem.reverse(u8, &coefficient);
+    const new_bits = coefficient ++ [_]u8{exponent};
+
+    return new_bits;
+}
+
+pub fn calculateNewBits(previous_bits: [4]u8, time_differential: u32) [4]u8 {
+    var time_diff = time_differential;
+
+    if (time_diff > TWO_WEEKS * 4) {
+        time_diff = TWO_WEEKS * 4;
+    }
+    if (time_diff < TWO_WEEKS / 4) {
+        time_diff = TWO_WEEKS / 4;
+    }
+
+    var new_target = bitsToTarget(previous_bits) * time_diff / TWO_WEEKS;
+    if (new_target > MAX_TARGET) {
+        new_target = MAX_TARGET;
+    }
+
+    return targetToBits(new_target);
+}
+
+const testing = std.testing;
+
+test "calculateNewBits" {
+    const prev_bits = [_]u8{ 0x54, 0xd8, 0x01, 0x18 };
+    const time_differential: u32 = 302400;
+    const want = [_]u8{ 0x00, 0x15, 0x76, 0x17 };
+
+    const new_bits = calculateNewBits(prev_bits, time_differential);
+
+    try testing.expectEqualSlices(u8, &want, &new_bits);
 }

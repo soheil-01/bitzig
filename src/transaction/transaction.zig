@@ -308,7 +308,7 @@ test "Transaction" {
         const want_prev_tx = try utils.hexToBytes(testing_alloc, "d1c789a9c60383bf715f3f6ad9d14b91fe55f3deb369fe5d9280cb1a01793f81");
         defer testing_alloc.free(want_prev_tx);
 
-        try testing.expectEqualStrings(want_prev_tx, &tx.tx_ins[0].prev_tx);
+        try testing.expectEqualSlices(u8, want_prev_tx, &tx.tx_ins[0].prev_tx);
         try testing.expect(tx.tx_ins[0].prev_index == 0);
 
         const want_script_sig = try utils.hexToBytes(testing_alloc, "6b483045022100ed81ff192e75a3fd2304004dcadb746fa5e24c5031ccfcf21320b0277457c98f02207a986d955c6e0cb35d446a89d3f56100f4d7f67801c31967743a9c8e10615bed01210349fc4e631e3624a545de3f89f5d8684c7b8138bd94bdd531d2e213bf016b278a");
@@ -339,7 +339,7 @@ test "Transaction" {
         const script_pubkey_serialized_0 = try tx.tx_outs[0].script_pubkey.serialize(testing_alloc);
         defer testing_alloc.free(script_pubkey_serialized_0);
 
-        try testing.expectEqualStrings(want_script_pubkey_0, script_pubkey_serialized_0);
+        try testing.expectEqualSlices(u8, want_script_pubkey_0, script_pubkey_serialized_0);
 
         try testing.expect(tx.tx_outs[1].amount == 10011545);
 
@@ -349,7 +349,7 @@ test "Transaction" {
         const script_pubkey_serialized_1 = try tx.tx_outs[1].script_pubkey.serialize(testing_alloc);
         defer testing_alloc.free(script_pubkey_serialized_1);
 
-        try testing.expectEqualStrings(want_script_pubkey_1, script_pubkey_serialized_1);
+        try testing.expectEqualSlices(u8, want_script_pubkey_1, script_pubkey_serialized_1);
     }
 
     // parse locktime
@@ -374,7 +374,7 @@ test "Transaction" {
         const serialized_tx = try tx.serialize(testing_alloc);
         defer testing_alloc.free(serialized_tx);
 
-        try testing.expectEqualStrings(tx_bytes, serialized_tx);
+        try testing.expectEqualSlices(u8, tx_bytes, serialized_tx);
     }
 
     // input value
@@ -409,7 +409,7 @@ test "Transaction" {
         const expected = try utils.hexToBytes(testing_alloc, "1976a914a802fc56c704ce87c42d7c92eb75e7896bdc41ae88ac");
         defer testing_alloc.free(expected);
 
-        try testing.expectEqualStrings(expected, script_pubkey_serialized);
+        try testing.expectEqualSlices(u8, expected, script_pubkey_serialized);
     }
 
     // fee
@@ -482,6 +482,6 @@ test "Transaction" {
         const expected = try utils.hexToBytes(testing_alloc, "010000000199a24308080ab26e6fb65c4eccfadf76749bb5bfa8cb08f291320b3c21e56f0d0d0000006b4830450221008ed46aa2cf12d6d81065bfabe903670165b538f65ee9a3385e6327d80c66d3b502203124f804410527497329ec4715e18558082d489b218677bd029e7fa306a72236012103935581e52c354cd2f484fe8ed83af7a3097005b2f9c60bff71d35bd795f54b67ffffffff02408af701000000001976a914d52ad7ca9b3d096a38e752c2018e6fbc40cdf26f88ac80969800000000001976a914507b27411ccf7f16f10297de6cef3f291623eddf88ac00000000");
         defer testing_alloc.free(expected);
 
-        try testing.expectEqualStrings(expected, serialized_tx);
+        try testing.expectEqualSlices(u8, expected, serialized_tx);
     }
 }

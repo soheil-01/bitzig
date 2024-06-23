@@ -311,7 +311,7 @@ test "Interpreter: hash160" {
 
     const hash160_hex = std.fmt.bytesToHex(hash160[0..20], .lower);
 
-    try testing.expectEqualStrings("d7d5ee7824ff93f94c3055af9382c86c68b5ca92", &hash160_hex);
+    try testing.expectEqualSlices(u8, "d7d5ee7824ff93f94c3055af9382c86c68b5ca92", &hash160_hex);
 }
 
 test "Interpreter: opCheckSig" {

@@ -353,12 +353,12 @@ test "Script: parse" {
     const cmd0_expected = try utils.hexToBytes(testing_alloc, "304402207899531a52d59a6de200179928ca900254a36b8dff8bb75f5f5d71b1cdc26125022008b422690b8461cb52c3cc30330b23d574351872b7c361e9aae3649071c1a71601");
     defer testing_alloc.free(cmd0_expected);
 
-    try testing.expectEqualStrings(cmd0_expected, script.cmds.items[0].element);
+    try testing.expectEqualSlices(u8, cmd0_expected, script.cmds.items[0].element);
 
     const cmd1_expected = try utils.hexToBytes(testing_alloc, "035d5c93d9ac96881f19ba1f686f15f009ded7c62efe85a872e6a19b43c15a2937");
     defer testing_alloc.free(cmd1_expected);
 
-    try testing.expectEqualStrings(cmd1_expected, script.cmds.items[1].element);
+    try testing.expectEqualSlices(u8, cmd1_expected, script.cmds.items[1].element);
 }
 
 test "Script: serialize" {
@@ -371,5 +371,5 @@ test "Script: serialize" {
     const serialized_script = try script.serialize(testing_alloc);
     defer testing_alloc.free(serialized_script);
 
-    try testing.expectEqualStrings(script_pubkey, serialized_script);
+    try testing.expectEqualSlices(u8, script_pubkey, serialized_script);
 }
