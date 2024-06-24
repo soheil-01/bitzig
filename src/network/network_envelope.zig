@@ -6,25 +6,23 @@ const TESTNET_NETWORK_MAGIC = [_]u8{ 0x0b, 0x11, 0x09, 0x07 };
 
 const NetworkEnvelope = @This();
 
-allocator: std.mem.Allocator,
 command: []const u8,
 payload: []u8,
 magic: [4]u8,
 
-pub fn init(allocator: std.mem.Allocator, command: []const u8, payload: []u8, testnet: bool) !NetworkEnvelope {
+pub fn init(command: []const u8, payload: []u8, testnet: bool) !NetworkEnvelope {
     const magic: [4]u8 = if (testnet) TESTNET_NETWORK_MAGIC else NETWORK_MAGIC;
 
     return .{
-        .allocator = allocator,
-        .command = try allocator.dupe(u8, command),
-        .payload = try allocator.dupe(u8, payload),
+        .command = command,
+        .payload = payload,
         .magic = magic,
     };
 }
 
-pub fn deinit(self: NetworkEnvelope) void {
-    self.allocator.free(self.command);
-    self.allocator.free(self.payload);
+pub fn deinit(self: NetworkEnvelope, allocator: std.mem.Allocator) void {
+    allocator.free(self.command);
+    allocator.free(self.payload);
 }
 
 pub fn toString(self: NetworkEnvelope, allocator: std.mem.Allocator) ![]u8 {
@@ -69,7 +67,6 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype, testnet: b
     const checksum: [4]u8 = reader.readBytesNoEof(4) catch return error.InvalidEncoding;
 
     const payload = try allocator.alloc(u8, payload_length);
-    defer allocator.free(payload);
     reader.readNoEof(payload) catch return error.InvalidEncoding;
 
     const calculated_checksum = utils.hash256(payload)[0..4];
@@ -77,7 +74,7 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype, testnet: b
         return error.ChecksumDoesNotMatch;
     }
 
-    return init(allocator, command_trimmed, payload, testnet);
+    return init(try allocator.dupe(u8, command_trimmed), payload, testnet);
 }
 
 const testing = std.testing;
@@ -89,10 +86,10 @@ test "NetworkEnvelope: parse" {
         defer testing_alloc.free(msg);
 
         const envelope = try NetworkEnvelope.parse(testing_alloc, msg, false);
-        defer envelope.deinit();
+        defer envelope.deinit(testing_alloc);
 
         try testing.expectEqualStrings(envelope.command, "verack");
-        try testing.expectEqualStrings(envelope.payload, "");
+        try testing.expect(envelope.payload.len == 0);
     }
 
     {
@@ -100,7 +97,7 @@ test "NetworkEnvelope: parse" {
         defer testing_alloc.free(msg);
 
         const envelope = try NetworkEnvelope.parse(testing_alloc, msg, false);
-        defer envelope.deinit();
+        defer envelope.deinit(testing_alloc);
 
         try testing.expectEqualStrings(envelope.command, "version");
         try testing.expectEqualStrings(envelope.payload, msg[24..]);
@@ -113,7 +110,7 @@ test "NetworkEnvelope: serialize" {
         defer testing_alloc.free(msg);
 
         const envelope = try NetworkEnvelope.parse(testing_alloc, msg, false);
-        defer envelope.deinit();
+        defer envelope.deinit(testing_alloc);
 
         const serialized = try envelope.serialize(testing_alloc);
         defer testing_alloc.free(serialized);
@@ -126,7 +123,7 @@ test "NetworkEnvelope: serialize" {
         defer testing_alloc.free(msg);
 
         const envelope = try NetworkEnvelope.parse(testing_alloc, msg, false);
-        defer envelope.deinit();
+        defer envelope.deinit(testing_alloc);
 
         const serialized = try envelope.serialize(testing_alloc);
         defer testing_alloc.free(serialized);

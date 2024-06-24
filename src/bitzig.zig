@@ -31,6 +31,9 @@ pub const block = struct {
 
 pub const network = struct {
     pub const NetworkEnvelope = @import("network/network_envelope.zig");
+    pub const message = struct {
+        pub const VersionMessage = @import("network/message/version_message.zig");
+    };
 };
 
 test {
