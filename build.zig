@@ -18,6 +18,8 @@ pub fn build(b: *std.Build) void {
     const opts = .{ .target = target, .optimize = optimize };
     const json_mod = b.dependency("json", opts).module("json");
 
+    const network_mod = b.dependency("network", .{}).module("network");
+
     const ripemd160 = b.addStaticLibrary(.{ .name = "ripemd160", .optimize = .Debug, .target = target });
     ripemd160.addCSourceFiles(.{
         .files = &.{ "lib/ripemd160.c", "lib/memzero.c" },
@@ -33,6 +35,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     lib.root_module.addImport("json", json_mod);
+    lib.root_module.addImport("network", network_mod);
     lib.linkLibrary(ripemd160);
     lib.addIncludePath(b.path("lib"));
 
@@ -48,6 +51,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     exe.root_module.addImport("json", json_mod);
+    exe.root_module.addImport("network", network_mod);
     exe.linkLibrary(ripemd160);
     exe.addIncludePath(b.path("lib"));
 
@@ -87,6 +91,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     tests.root_module.addImport("json", json_mod);
+    tests.root_module.addImport("network", network_mod);
     tests.linkLibrary(ripemd160);
     tests.addIncludePath(b.path("lib"));
     const run_tests = b.addRunArtifact(tests);

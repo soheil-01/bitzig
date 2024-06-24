@@ -19,6 +19,10 @@
             .url = "git+https://github.com/getty-zig/json.git#11946ff9d2f159cb06aaf423ce13bd8aa2a481e7",
             .hash = "1220829a91cb0804b35dadb6eb453cd9694b16d624e02493dc712ad43fd8681095f1",
         },
+        .network = .{
+            .url = "git+https://github.com/ikskuh/zig-network#master",
+            .hash = "1220f3349c0c9d60e0dc51b60f20060dd04acaae74ea0729fd69041651dc297eb248",
+        },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally
