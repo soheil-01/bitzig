@@ -100,23 +100,17 @@ pub fn parse(source: []const u8) !Block {
 }
 
 pub fn parseFromReader(reader: anytype) !Block {
-    const version = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
+    const version = reader.readInt(u32, .little) catch return error.InvalidEncoding;
 
-    var prev_block: [32]u8 = undefined;
-    reader.readNoEof(&prev_block) catch return error.InvalidEncoding;
+    var prev_block = reader.readBytesNoEof(32) catch return error.InvalidEncoding;
     std.mem.reverse(u8, &prev_block);
 
-    var merkle_root: [32]u8 = undefined;
-    reader.readNoEof(&merkle_root) catch return error.InvalidEncoding;
+    var merkle_root: [32]u8 = reader.readBytesNoEof(32) catch return error.InvalidEncoding;
     std.mem.reverse(u8, &merkle_root);
 
-    const timestamp = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
-
-    var bits: [4]u8 = undefined;
-    reader.readNoEof(&bits) catch return error.InvalidEncoding;
-
-    var nonce: [4]u8 = undefined;
-    reader.readNoEof(&nonce) catch return error.InvalidEncoding;
+    const timestamp = reader.readInt(u32, .little) catch return error.InvalidEncoding;
+    const bits = reader.readBytesNoEof(4) catch return error.InvalidEncoding;
+    const nonce = reader.readBytesNoEof(4) catch return error.InvalidEncoding;
 
     return init(version, prev_block, merkle_root, timestamp, bits, nonce);
 }

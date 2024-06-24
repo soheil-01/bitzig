@@ -29,6 +29,10 @@ pub const block = struct {
     pub const Block = @import("block/block.zig");
 };
 
+pub const network = struct {
+    pub const NetworkEnvelope = @import("network/network_envelope.zig");
+};
+
 test {
     @import("std").testing.refAllDeclsRecursive(@This());
 }

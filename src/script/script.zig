@@ -95,7 +95,7 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !Script {
             try cmds.append(.{ .element = buf });
             count += data_length + 1;
         } else if (current_byte == 77) {
-            const data_length = utils.readIntFromReader(u16, reader, .little) catch return error.InvalidEncoding;
+            const data_length = reader.readInt(u16, .little) catch return error.InvalidEncoding;
             const buf = try allocator.alloc(u8, data_length);
             reader.readNoEof(buf) catch return error.InvalidEncoding;
             try cmds.append(.{ .element = buf });

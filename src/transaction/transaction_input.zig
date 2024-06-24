@@ -72,13 +72,12 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8) !TransactionInput
 }
 
 pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !TransactionInput {
-    var prev_tx: [32]u8 = undefined;
-    reader.readNoEof(&prev_tx) catch return error.InvalidEncoding;
+    var prev_tx = reader.readBytesNoEof(32) catch return error.InvalidEncoding;
     std.mem.reverse(u8, &prev_tx);
 
-    const prev_index = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
+    const prev_index = reader.readInt(u32, .little) catch return error.InvalidEncoding;
     const script = try Script.parseFromReader(allocator, reader);
-    const sequence = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
+    const sequence = reader.readInt(u32, .little) catch return error.InvalidEncoding;
 
     return init(allocator, prev_tx, prev_index, script, sequence);
 }

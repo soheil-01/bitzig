@@ -256,7 +256,7 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8, testnet: bool) !T
 }
 
 pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype, testnet: bool) !Transaction {
-    const version = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
+    const version = reader.readInt(u32, .little) catch return error.InvalidEncoding;
 
     const num_inputs = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
     const inputs = try allocator.alloc(TransactionInput, num_inputs);
@@ -270,7 +270,7 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype, testnet: b
         outputs[i] = try TransactionOutput.parseFromReader(allocator, reader);
     }
 
-    const locktime = utils.readIntFromReader(u32, reader, .little) catch return error.InvalidEncoding;
+    const locktime = reader.readInt(u32, .little) catch return error.InvalidEncoding;
 
     return .{ .allocator = allocator, .version = version, .tx_ins = inputs, .tx_outs = outputs, .locktime = locktime, .testnet = testnet };
 }

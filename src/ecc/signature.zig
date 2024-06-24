@@ -74,22 +74,19 @@ fn readDerInt(reader: anytype) !u256 {
         return error.InvalidEncoding;
     }
 
-    var buf: [32]u8 = undefined;
     var len = reader.readByte() catch return error.InvalidEncoding;
-    if (len == 0 or len > buf.len + 1) {
+    if (len == 0 or len > 33) {
         return error.InvalidEncoding;
     }
 
-    if (len == buf.len + 1) {
+    if (len == 33) {
         if ((reader.readByte() catch return error.InvalidEncoding) != 0) {
             return error.InvalidEncoding;
         }
         len -= 1;
     }
 
-    reader.readNoEof(&buf) catch return error.InvalidEncoding;
-
-    return std.mem.readInt(u256, &buf, .big);
+    return reader.readInt(u256, .big) catch return error.InvalidEncoding;
 }
 
 const testing = std.testing;

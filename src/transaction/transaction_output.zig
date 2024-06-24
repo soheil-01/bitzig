@@ -44,7 +44,7 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8) !TransactionOutpu
 }
 
 pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype) !TransactionOutput {
-    const amount = utils.readIntFromReader(u64, reader, .little) catch return error.InvalidEncoding;
+    const amount = reader.readInt(u64, .little) catch return error.InvalidEncoding;
     const script_pubkey = try Script.parseFromReader(allocator, reader);
 
     return init(allocator, amount, script_pubkey);

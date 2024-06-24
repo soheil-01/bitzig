@@ -122,22 +122,19 @@ pub fn readVarintFromReader(reader: anytype) !u64 {
 
     switch (i) {
         0xfd => {
-            var buf: [2]u8 = undefined;
-            try reader.readNoEof(&buf);
+            const buf = try reader.readBytesNoEof(2);
             const int = std.mem.readInt(u16, &buf, .little);
 
             return @intCast(int);
         },
         0xfe => {
-            var buf: [4]u8 = undefined;
-            try reader.readNoEof(&buf);
+            const buf = try reader.readBytesNoEof(4);
             const int = std.mem.readInt(u32, &buf, .little);
 
             return @intCast(int);
         },
         0xff => {
-            var buf: [8]u8 = undefined;
-            try reader.readNoEof(&buf);
+            const buf = try reader.readBytesNoEof(8);
             const int = std.mem.readInt(u64, &buf, .little);
 
             return int;
@@ -169,14 +166,6 @@ pub fn encodeVarint(allocator: std.mem.Allocator, int: u64) ![]u8 {
         std.mem.writeInt(u64, buf[1..9], int, .little);
         return buf;
     }
-}
-
-pub fn readIntFromReader(comptime T: type, reader: anytype, endian: std.builtin.Endian) !T {
-    var int_bytes: [@divExact(@typeInfo(T).Int.bits, 8)]u8 = undefined;
-    try reader.readNoEof(&int_bytes);
-    const int = std.mem.readInt(T, &int_bytes, endian);
-
-    return int;
 }
 
 pub fn encodeInt(comptime T: type, int: T, endian: std.builtin.Endian) [@divExact(@typeInfo(T).Int.bits, 8)]u8 {
