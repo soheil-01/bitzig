@@ -6,6 +6,7 @@ const VersionMessage = @import("message/version_message.zig");
 const VerAckMessage = @import("message/ver_ack_message.zig");
 const PingMessage = @import("message/ping_message.zig");
 const PongMessage = @import("message/pong_message.zig");
+const GetHeadersMessage = @import("message/get_headers_message.zig");
 
 const SimpleNode = @This();
 
@@ -71,6 +72,7 @@ pub const Message = union(enum) {
     verack: VerAckMessage,
     ping: PingMessage,
     pong: PongMessage,
+    getheaders: GetHeadersMessage,
 };
 
 pub fn waitFor(self: SimpleNode, comptime message_types: anytype) !Message {
