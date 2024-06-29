@@ -26,6 +26,7 @@ pub const interpreter = struct {
 };
 
 pub const block = struct {
+    pub const constants = @import("block/constants.zig");
     pub const Block = @import("block/block.zig");
 };
 
@@ -37,6 +38,7 @@ pub const network = struct {
         pub const PongMessage = @import("network/message/pong_message.zig");
         pub const VerAckMessage = @import("network/message/ver_ack_message.zig");
         pub const GetHeadersMessage = @import("network/message/get_headers_message.zig");
+        pub const HeadersMessage = @import("network/message/headers_message.zig");
     };
     pub const SimpleNode = @import("network/simple_node.zig");
 };

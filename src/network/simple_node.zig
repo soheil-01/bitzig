@@ -7,6 +7,7 @@ const VerAckMessage = @import("message/ver_ack_message.zig");
 const PingMessage = @import("message/ping_message.zig");
 const PongMessage = @import("message/pong_message.zig");
 const GetHeadersMessage = @import("message/get_headers_message.zig");
+const HeadersMessage = @import("message/headers_message.zig");
 
 const SimpleNode = @This();
 
@@ -73,6 +74,7 @@ pub const Message = union(enum) {
     ping: PingMessage,
     pong: PongMessage,
     getheaders: GetHeadersMessage,
+    headers: HeadersMessage,
 };
 
 pub fn waitFor(self: SimpleNode, comptime message_types: anytype) !Message {
@@ -87,7 +89,7 @@ pub fn waitFor(self: SimpleNode, comptime message_types: anytype) !Message {
         } else {
             inline for (message_types) |message_type| {
                 if (std.mem.eql(u8, message_type.command, envelope.command)) {
-                    return @unionInit(Message, message_type.command, try message_type.parse(envelope.payload));
+                    return @unionInit(Message, message_type.command, try message_type.parse(envelope.payload, self.allocator));
                 }
             }
         }

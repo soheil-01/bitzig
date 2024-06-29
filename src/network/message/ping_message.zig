@@ -6,7 +6,7 @@ pub const command = "ping";
 
 nonce: [8]u8,
 
-pub fn parse(source: []const u8) !PingMessage {
+pub fn parse(source: []const u8, _: std.mem.Allocator) !PingMessage {
     var fb = std.io.fixedBufferStream(source);
     const reader = fb.reader();
 

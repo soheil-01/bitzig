@@ -53,6 +53,7 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8, testnet: bool) !N
 
 pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype, testnet: bool) !NetworkEnvelope {
     const magic: [4]u8 = reader.readBytesNoEof(4) catch return error.InvalidEncoding;
+
     const expected_magic = if (testnet) TESTNET_NETWORK_MAGIC else NETWORK_MAGIC;
 
     if (!std.mem.eql(u8, &magic, &expected_magic)) {

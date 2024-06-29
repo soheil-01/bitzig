@@ -6,7 +6,7 @@ pub const command = "pong";
 
 nonce: [8]u8,
 
-pub fn parse(source: []const u8) !PongMessage {
+pub fn parse(source: []const u8, _: std.mem.Allocator) !PongMessage {
     var fb = std.io.fixedBufferStream(source);
     const reader = fb.reader();
 
