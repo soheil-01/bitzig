@@ -5,6 +5,7 @@ const utils = bitzig.utils;
 const ecc = bitzig.ecc;
 const transaction = bitzig.transaction;
 const script = bitzig.script;
+const network = bitzig.network;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -45,4 +46,11 @@ pub fn main() !void {
     defer allocator.free(tx_bytes);
 
     std.debug.print("{s}\n", .{std.fmt.fmtSliceHexLower(tx_bytes)});
+
+    // ******************************************************
+
+    const node = try network.SimpleNode.init(allocator, "172.65.15.46", null, false, true);
+    defer node.deinit();
+
+    try node.handshake();
 }

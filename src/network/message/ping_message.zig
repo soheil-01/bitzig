@@ -18,6 +18,9 @@ pub fn parseFromReader(reader: anytype) !PingMessage {
     return .{ .nonce = nonce };
 }
 
-pub fn serialize(self: PingMessage) ![]u8 {
-    return &self.nonce;
+pub fn serialize(self: PingMessage, allocator: std.mem.Allocator) ![]u8 {
+    var result = std.ArrayList(u8).init(allocator);
+    try result.appendSlice(&self.nonce);
+
+    return result.toOwnedSlice();
 }

@@ -33,7 +33,11 @@ pub const network = struct {
     pub const NetworkEnvelope = @import("network/network_envelope.zig");
     pub const message = struct {
         pub const VersionMessage = @import("network/message/version_message.zig");
+        pub const PingMessage = @import("network/message/ping_message.zig");
+        pub const PongMessage = @import("network/message/pong_message.zig");
+        pub const VerAckMessage = @import("network/message/ver_ack_message.zig");
     };
+    pub const SimpleNode = @import("network/simple_node.zig");
 };
 
 test {

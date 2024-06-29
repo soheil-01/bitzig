@@ -21,7 +21,7 @@
         },
         .network = .{
             .url = "git+https://github.com/ikskuh/zig-network#master",
-            .hash = "1220f3349c0c9d60e0dc51b60f20060dd04acaae74ea0729fd69041651dc297eb248",
+            .hash = "12203b3634f36570ffced059248bd429cd06dc89a98659c86569d890fdd99b5070bd",
         },
     },
     .paths = .{
