@@ -10,6 +10,6 @@ pub fn serialize(_: VerAckMessage, allocator: std.mem.Allocator) ![]u8 {
     return result;
 }
 
-pub fn parse(_: []const u8, _: std.mem.Allocator) !VerAckMessage {
+pub fn parse(_: std.mem.Allocator, _: []const u8) !VerAckMessage {
     return .{};
 }

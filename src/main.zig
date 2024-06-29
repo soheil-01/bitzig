@@ -64,7 +64,7 @@ pub fn main() !void {
         const getheaders = network.message.GetHeadersMessage{ .start_block = try previous.hash() };
         try node.send(getheaders);
 
-        const headers = (try node.waitFor(.{network.message.HeadersMessage})).headers;
+        const headers = try node.waitFor(network.message.HeadersMessage);
         defer headers.deinit(allocator);
 
         for (headers.blocks) |header| {

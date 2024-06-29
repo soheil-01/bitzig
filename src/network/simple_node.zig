@@ -6,8 +6,6 @@ const VersionMessage = @import("message/version_message.zig");
 const VerAckMessage = @import("message/ver_ack_message.zig");
 const PingMessage = @import("message/ping_message.zig");
 const PongMessage = @import("message/pong_message.zig");
-const GetHeadersMessage = @import("message/get_headers_message.zig");
-const HeadersMessage = @import("message/headers_message.zig");
 
 const SimpleNode = @This();
 
@@ -68,16 +66,7 @@ pub fn read(self: SimpleNode) !NetworkEnvelope {
     return envelope;
 }
 
-pub const Message = union(enum) {
-    version: VersionMessage,
-    verack: VerAckMessage,
-    ping: PingMessage,
-    pong: PongMessage,
-    getheaders: GetHeadersMessage,
-    headers: HeadersMessage,
-};
-
-pub fn waitFor(self: SimpleNode, comptime message_types: anytype) !Message {
+pub fn waitFor(self: SimpleNode, comptime MessageType: type) !MessageType {
     while (true) {
         const envelope = try self.read();
         defer envelope.deinit(self.allocator);
@@ -87,10 +76,8 @@ pub fn waitFor(self: SimpleNode, comptime message_types: anytype) !Message {
         } else if (std.mem.eql(u8, envelope.command, PingMessage.command)) {
             try self.send(PongMessage{ .nonce = std.mem.bytesToValue([8]u8, envelope.payload) });
         } else {
-            inline for (message_types) |message_type| {
-                if (std.mem.eql(u8, message_type.command, envelope.command)) {
-                    return @unionInit(Message, message_type.command, try message_type.parse(envelope.payload, self.allocator));
-                }
+            if (std.mem.eql(u8, MessageType.command, envelope.command)) {
+                return MessageType.parse(self.allocator, envelope.payload);
             }
         }
     }
@@ -99,5 +86,5 @@ pub fn waitFor(self: SimpleNode, comptime message_types: anytype) !Message {
 pub fn handshake(self: SimpleNode) !void {
     const version = VersionMessage.init(.{});
     try self.send(version);
-    _ = try self.waitFor(.{VerAckMessage});
+    _ = try self.waitFor(VerAckMessage);
 }

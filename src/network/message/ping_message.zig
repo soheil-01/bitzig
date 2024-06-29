@@ -6,14 +6,14 @@ pub const command = "ping";
 
 nonce: [8]u8,
 
-pub fn parse(source: []const u8, _: std.mem.Allocator) !PingMessage {
+pub fn parse(allocator: std.mem.Allocator, source: []const u8) !PingMessage {
     var fb = std.io.fixedBufferStream(source);
     const reader = fb.reader();
 
-    return parseFromReader(reader);
+    return parseFromReader(allocator, reader);
 }
 
-pub fn parseFromReader(reader: anytype) !PingMessage {
+pub fn parseFromReader(_: std.mem.Allocator, reader: anytype) !PingMessage {
     const nonce = reader.readBytesNoEof(8) catch return error.InvalidEncoding;
     return .{ .nonce = nonce };
 }

@@ -87,8 +87,8 @@ pub fn serialize(self: VersionMessage, allocator: std.mem.Allocator) ![]u8 {
     return result.toOwnedSlice();
 }
 
-pub fn parse(_: []const u8, _: std.mem.Allocator) !VersionMessage {
-    return .{};
+pub fn parse(_: std.mem.Allocator, _: []const u8) !VersionMessage {
+    return VersionMessage.init(.{});
 }
 
 const testing = std.testing;
