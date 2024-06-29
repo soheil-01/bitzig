@@ -6,17 +6,17 @@ const TESTNET_NETWORK_MAGIC = [_]u8{ 0x0b, 0x11, 0x09, 0x07 };
 
 const NetworkEnvelope = @This();
 
+magic: [4]u8,
 command: []const u8,
 payload: []u8,
-magic: [4]u8,
 
 pub fn init(command: []const u8, payload: []u8, testnet: bool) !NetworkEnvelope {
     const magic: [4]u8 = if (testnet) TESTNET_NETWORK_MAGIC else NETWORK_MAGIC;
 
     return .{
+        .magic = magic,
         .command = command,
         .payload = payload,
-        .magic = magic,
     };
 }
 
