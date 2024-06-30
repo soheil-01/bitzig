@@ -9,8 +9,9 @@ merkle_root: [32]u8,
 timestamp: u32,
 bits: [4]u8,
 nonce: [4]u8,
+tx_hashes: ?[][32]u8,
 
-pub fn init(version: u32, prev_block: [32]u8, merkle_root: [32]u8, timestamp: u32, bits: [4]u8, nonce: [4]u8) Block {
+pub fn init(version: u32, prev_block: [32]u8, merkle_root: [32]u8, timestamp: u32, bits: [4]u8, nonce: [4]u8, tx_hashes: ?[][32]u8) Block {
     return .{
         .version = version,
         .prev_block = prev_block,
@@ -18,7 +19,12 @@ pub fn init(version: u32, prev_block: [32]u8, merkle_root: [32]u8, timestamp: u3
         .timestamp = timestamp,
         .bits = bits,
         .nonce = nonce,
+        .tx_hashes = tx_hashes,
     };
+}
+
+pub fn deinit(self: Block, allocator: std.mem.Allocator) void {
+    if (self.tx_hashes) |hashes| allocator.free(hashes);
 }
 
 pub fn hash(self: Block) ![32]u8 {
@@ -67,6 +73,25 @@ pub fn checkPow(self: Block) !bool {
     const proof = std.mem.readInt(u256, &h256, .little);
 
     return proof < self.target();
+}
+
+pub fn validateMerkleRoot(self: Block, allocator: std.mem.Allocator) !bool {
+    const tx_hashes = self.tx_hashes orelse return error.NoTxHashes;
+
+    if (tx_hashes.len == 0) return error.EmptyTxHashes;
+
+    var hashes = try allocator.alloc([32]u8, tx_hashes.len);
+    defer allocator.free(hashes);
+
+    for (tx_hashes, 0..) |tx_hash, i| {
+        hashes[i] = tx_hash;
+        std.mem.reverse(u8, &hashes[i]);
+    }
+
+    var root = try utils.merkleRoot(allocator, hashes);
+    std.mem.reverse(u8, &root);
+
+    return std.mem.eql(u8, &root, &self.merkle_root);
 }
 
 pub fn serialize(self: Block) ![80]u8 {

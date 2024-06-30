@@ -250,6 +250,57 @@ pub fn calculateNewBits(previous_bits: [4]u8, time_differential: u32) [4]u8 {
     return targetToBits(new_target);
 }
 
+pub fn merkleParent(hash1: [32]u8, hash2: [32]u8) [32]u8 {
+    const combined = hash1 ++ hash2;
+    return hash256(&combined);
+}
+
+pub fn merkleParentLevel(allocator: std.mem.Allocator, hashes: [][32]u8) ![][32]u8 {
+    var parent_level = try allocator.alloc([32]u8, (hashes.len / 2) + (hashes.len & 1));
+
+    var i: usize = 0;
+    while (i < hashes.len / 2) : (i += 1) {
+        parent_level[i] = merkleParent(hashes[i * 2], hashes[i * 2 + 1]);
+    }
+
+    if (hashes.len & 1 == 1) {
+        parent_level[i] = merkleParent(hashes[hashes.len - 1], hashes[hashes.len - 1]);
+    }
+
+    return parent_level;
+}
+
+pub fn merkleRoot(allocator: std.mem.Allocator, hashes: [][32]u8) ![32]u8 {
+    if (hashes.len == 0) return error.EmptyInput;
+    if (hashes.len == 1) return hashes[0];
+
+    var current_hashes = try allocator.dupe([32]u8, hashes);
+    defer allocator.free(current_hashes);
+
+    while (current_hashes.len > 1) {
+        const parent_level = try merkleParentLevel(allocator, current_hashes);
+        allocator.free(current_hashes);
+        current_hashes = parent_level;
+    }
+
+    return current_hashes[0];
+}
+
+pub fn bytesToBitField(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
+    var flag_bits = std.ArrayList(u8).init(allocator);
+
+    for (0..bytes.len) |i| {
+        var byte = bytes[i];
+
+        for (0..8) |_| {
+            try flag_bits.append(byte & 1);
+            byte >>= 1;
+        }
+    }
+
+    return flag_bits.toOwnedSlice();
+}
+
 const testing = std.testing;
 
 test "calculateNewBits" {
