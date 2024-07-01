@@ -94,3 +94,49 @@ pub fn isLeaf(self: MerkleTree) bool {
 pub fn rightExists(self: MerkleTree) bool {
     return self.nodes[self.current_depth + 1].len > self.current_index * 2 + 1;
 }
+
+pub fn populateTree(self: MerkleTree, flag_bits: []u8, hashes: [][32]u8) !void {
+    var flag_index: usize = 0;
+    var hash_index: usize = 0;
+
+    while (self.root() == null) {
+        if (self.isLeaf()) {
+            self.setCurrentNode(hashes[hash_index]);
+            flag_index += 1;
+            hash_index += 1;
+            self.up();
+        } else {
+            const left_hash = self.getLeftNode();
+            if (left_hash == null) {
+                if (flag_bits[flag_index] == 0) {
+                    self.setCurrentNode(hashes[hash_index]);
+                    flag_index += 1;
+                    hash_index += 1;
+                    self.up();
+                } else {
+                    flag_index += 1;
+                    self.left();
+                }
+            } else if (self.rightExists()) {
+                const right_hash = self.getRightNode();
+                if (right_hash == null) {
+                    self.right();
+                } else {
+                    self.setCurrentNode(utils.merkleParent(left_hash.?, right_hash.?));
+                    self.up();
+                }
+            } else {
+                self.setCurrentNode(utils.merkleParent(left_hash.?, left_hash.?));
+                self.up();
+            }
+        }
+    }
+
+    if (hash_index != hashes.len) {
+        return error.HashesNotAllConsumed;
+    }
+
+    for (flag_bits[flag_index..]) |bit| {
+        if (bit != 0) return error.FlagBitsNotAllConsumed;
+    }
+}

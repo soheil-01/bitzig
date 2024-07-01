@@ -43,6 +43,11 @@ pub const network = struct {
     pub const SimpleNode = @import("network/simple_node.zig");
 };
 
+pub const merkle = struct {
+    pub const MerkleTree = @import("merkle/merkle_tree.zig");
+    pub const MerkleBlock = @import("merkle/merkle_block.zig");
+};
+
 test {
     @import("std").testing.refAllDeclsRecursive(@This());
 }

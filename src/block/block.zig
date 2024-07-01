@@ -137,7 +137,7 @@ pub fn parseFromReader(reader: anytype) !Block {
     const bits = reader.readBytesNoEof(4) catch return error.InvalidEncoding;
     const nonce = reader.readBytesNoEof(4) catch return error.InvalidEncoding;
 
-    return init(version, prev_block, merkle_root, timestamp, bits, nonce);
+    return init(version, prev_block, merkle_root, timestamp, bits, nonce, null);
 }
 
 const testing = std.testing;

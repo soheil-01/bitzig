@@ -1,4 +1,5 @@
 const std = @import("std");
+const MerkleTree = @import("merkle_tree.zig");
 const utils = @import("../utils.zig");
 
 const MerkleBlock = @This();
@@ -19,6 +20,28 @@ flags: []u8,
 pub fn deinit(self: MerkleBlock) void {
     self.allocator.free(self.hashes);
     self.allocator.free(self.flags);
+}
+
+pub fn isValid(self: MerkleBlock) !bool {
+    const flag_bits = try utils.bytesToBitField(self.allocator, self.flags);
+    defer self.allocator.free(flag_bits);
+
+    var hashes = try self.allocator.dupe([32]u8, self.hashes);
+    defer self.allocator.free(hashes);
+
+    for (0..hashes.len) |i| {
+        std.mem.reverse(u8, &hashes[i]);
+    }
+
+    const merkle_tree = try MerkleTree.init(self.allocator, self.total);
+    defer merkle_tree.deinit();
+
+    try merkle_tree.populateTree(flag_bits, self.hashes);
+
+    var root = merkle_tree.root().?;
+    std.mem.reverse(u8, &root);
+
+    return std.mem.eql(u8, &self.merkle_root, &root);
 }
 
 pub fn parse(allocator: std.mem.Allocator, source: []const u8) !MerkleBlock {
