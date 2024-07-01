@@ -302,6 +302,7 @@ pub fn bytesToBitField(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
 }
 
 const testing = std.testing;
+const testing_alloc = testing.allocator;
 
 test "calculateNewBits" {
     const prev_bits = [_]u8{ 0x54, 0xd8, 0x01, 0x18 };
@@ -311,4 +312,90 @@ test "calculateNewBits" {
     const new_bits = calculateNewBits(prev_bits, time_differential);
 
     try testing.expectEqualSlices(u8, &want, &new_bits);
+}
+
+test "merkleParent" {
+    const hash0 = try hexToBytes(testing_alloc, "c117ea8ec828342f4dfb0ad6bd140e03a50720ece40169ee38bdc15d9eb64cf5");
+    defer testing_alloc.free(hash0);
+
+    const hash1 = try hexToBytes(testing_alloc, "c131474164b412e3406696da1ee20ab0fc9bf41c8f05fa8ceea7a08d672d7cc5");
+    defer testing_alloc.free(hash1);
+
+    const want = try hexToBytes(testing_alloc, "8b30c5ba100f6f2e5ad1e2a742e5020491240f8eb514fe97c713c31718ad7ecd");
+    defer testing_alloc.free(want);
+
+    try testing.expectEqualSlices(u8, want, &merkleParent(std.mem.bytesToValue([32]u8, hash0), std.mem.bytesToValue([32]u8, hash1)));
+}
+
+test "merkleParentLevel" {
+    const hashes_bytes = [_][]u8{
+        try hexToBytes(testing_alloc, "c117ea8ec828342f4dfb0ad6bd140e03a50720ece40169ee38bdc15d9eb64cf5"),
+        try hexToBytes(testing_alloc, "c131474164b412e3406696da1ee20ab0fc9bf41c8f05fa8ceea7a08d672d7cc5"),
+        try hexToBytes(testing_alloc, "f391da6ecfeed1814efae39e7fcb3838ae0b02c02ae7d0a5848a66947c0727b0"),
+        try hexToBytes(testing_alloc, "3d238a92a94532b946c90e19c49351c763696cff3db400485b813aecb8a13181"),
+        try hexToBytes(testing_alloc, "10092f2633be5f3ce349bf9ddbde36caa3dd10dfa0ec8106bce23acbff637dae"),
+        try hexToBytes(testing_alloc, "7d37b3d54fa6a64869084bfd2e831309118b9e833610e6228adacdbd1b4ba161"),
+        try hexToBytes(testing_alloc, "8118a77e542892fe15ae3fc771a4abfd2f5d5d5997544c3487ac36b5c85170fc"),
+        try hexToBytes(testing_alloc, "dff6879848c2c9b62fe652720b8df5272093acfaa45a43cdb3696fe2466a3877"),
+        try hexToBytes(testing_alloc, "b825c0745f46ac58f7d3759e6dc535a1fec7820377f24d4c2c6ad2cc55c0cb59"),
+        try hexToBytes(testing_alloc, "95513952a04bd8992721e9b7e2937f1c04ba31e0469fbe615a78197f68f52b7c"),
+        try hexToBytes(testing_alloc, "2e6d722e5e4dbdf2447ddecc9f7dabb8e299bae921c99ad5b0184cd9eb8e5908"),
+    };
+    defer for (hashes_bytes) |hash_bytes| testing_alloc.free(hash_bytes);
+
+    var hashes = try testing_alloc.alloc([32]u8, hashes_bytes.len);
+    defer testing_alloc.free(hashes);
+
+    for (0..hashes.len) |i| {
+        hashes[i] = std.mem.bytesToValue([32]u8, hashes_bytes[i]);
+    }
+
+    const want_hashes = [_][]u8{
+        try hexToBytes(testing_alloc, "8b30c5ba100f6f2e5ad1e2a742e5020491240f8eb514fe97c713c31718ad7ecd"),
+        try hexToBytes(testing_alloc, "7f4e6f9e224e20fda0ae4c44114237f97cd35aca38d83081c9bfd41feb907800"),
+        try hexToBytes(testing_alloc, "ade48f2bbb57318cc79f3a8678febaa827599c509dce5940602e54c7733332e7"),
+        try hexToBytes(testing_alloc, "68b3e2ab8182dfd646f13fdf01c335cf32476482d963f5cd94e934e6b3401069"),
+        try hexToBytes(testing_alloc, "43e7274e77fbe8e5a42a8fb58f7decdb04d521f319f332d88e6b06f8e6c09e27"),
+        try hexToBytes(testing_alloc, "1796cd3ca4fef00236e07b723d3ed88e1ac433acaaa21da64c4b33c946cf3d10"),
+    };
+    defer for (want_hashes) |hash| testing_alloc.free(hash);
+
+    const actual_hashes = try merkleParentLevel(testing_alloc, hashes);
+    defer testing_alloc.free(actual_hashes);
+
+    for (0..want_hashes.len) |i| {
+        try testing.expectEqualSlices(u8, want_hashes[i], &actual_hashes[i]);
+    }
+}
+
+test "merkleRoot" {
+    const hashes_bytes = [_][]u8{
+        try hexToBytes(testing_alloc, "c117ea8ec828342f4dfb0ad6bd140e03a50720ece40169ee38bdc15d9eb64cf5"),
+        try hexToBytes(testing_alloc, "c131474164b412e3406696da1ee20ab0fc9bf41c8f05fa8ceea7a08d672d7cc5"),
+        try hexToBytes(testing_alloc, "f391da6ecfeed1814efae39e7fcb3838ae0b02c02ae7d0a5848a66947c0727b0"),
+        try hexToBytes(testing_alloc, "3d238a92a94532b946c90e19c49351c763696cff3db400485b813aecb8a13181"),
+        try hexToBytes(testing_alloc, "10092f2633be5f3ce349bf9ddbde36caa3dd10dfa0ec8106bce23acbff637dae"),
+        try hexToBytes(testing_alloc, "7d37b3d54fa6a64869084bfd2e831309118b9e833610e6228adacdbd1b4ba161"),
+        try hexToBytes(testing_alloc, "8118a77e542892fe15ae3fc771a4abfd2f5d5d5997544c3487ac36b5c85170fc"),
+        try hexToBytes(testing_alloc, "dff6879848c2c9b62fe652720b8df5272093acfaa45a43cdb3696fe2466a3877"),
+        try hexToBytes(testing_alloc, "b825c0745f46ac58f7d3759e6dc535a1fec7820377f24d4c2c6ad2cc55c0cb59"),
+        try hexToBytes(testing_alloc, "95513952a04bd8992721e9b7e2937f1c04ba31e0469fbe615a78197f68f52b7c"),
+        try hexToBytes(testing_alloc, "2e6d722e5e4dbdf2447ddecc9f7dabb8e299bae921c99ad5b0184cd9eb8e5908"),
+        try hexToBytes(testing_alloc, "b13a750047bc0bdceb2473e5fe488c2596d7a7124b4e716fdd29b046ef99bbf0"),
+    };
+    defer for (hashes_bytes) |hash_bytes| testing_alloc.free(hash_bytes);
+
+    var hashes = try testing_alloc.alloc([32]u8, hashes_bytes.len);
+    defer testing_alloc.free(hashes);
+
+    for (0..hashes.len) |i| {
+        hashes[i] = std.mem.bytesToValue([32]u8, hashes_bytes[i]);
+    }
+
+    const expected = try hexToBytes(testing_alloc, "acbcab8bcc1af95d8d563b77d24c3d19b18f1486383d75a5085c4e86c86beed6");
+    defer testing_alloc.free(expected);
+
+    const actual = try merkleRoot(testing_alloc, hashes);
+
+    try testing.expectEqualSlices(u8, expected, &actual);
 }
