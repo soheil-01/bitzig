@@ -26,62 +26,37 @@ pub fn build(b: *std.Build) void {
     });
     ripemd160.linkLibC();
 
-    const lib = b.addStaticLibrary(.{
-        .name = "bitzig",
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
+    const module = b.addModule("bitzig", .{
         .root_source_file = b.path("src/bitzig.zig"),
+        .imports = &.{
+            .{ .name = "json", .module = json_mod },
+            .{ .name = "network", .module = network_mod },
+        },
+    });
+    module.linkLibrary(ripemd160);
+    module.addIncludePath(b.path("lib"));
+
+    const transaction_creation_example = b.addExecutable(.{
+        .name = "transaction_creation",
+        .root_source_file = b.path("examples/transaction_creation.zig"),
         .target = target,
         .optimize = optimize,
     });
-    lib.root_module.addImport("json", json_mod);
-    lib.root_module.addImport("network", network_mod);
-    lib.linkLibrary(ripemd160);
-    lib.addIncludePath(b.path("lib"));
+    transaction_creation_example.root_module.addImport("bitzig", module);
 
-    // This declares intent for the library to be installed into the standard
-    // location when the user invokes the "install" step (the default step when
-    // running `zig build`).
-    b.installArtifact(lib);
-
-    const exe = b.addExecutable(.{
-        .name = "bitzig",
-        .root_source_file = b.path("src/main.zig"),
+    const block_validation_example = b.addExecutable(.{
+        .name = "block_validation",
+        .root_source_file = b.path("examples/block_validation.zig"),
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("json", json_mod);
-    exe.root_module.addImport("network", network_mod);
-    exe.linkLibrary(ripemd160);
-    exe.addIncludePath(b.path("lib"));
+    block_validation_example.root_module.addImport("bitzig", module);
 
-    // This declares intent for the executable to be installed into the
-    // standard location when the user invokes the "install" step (the default
-    // step when running `zig build`).
-    b.installArtifact(exe);
+    const transaction_creation_step = b.step("transaction-creation", "Run transaction creation example");
+    transaction_creation_step.dependOn(&b.addInstallArtifact(transaction_creation_example, .{}).step);
 
-    // This *creates* a Run step in the build graph, to be executed when another
-    // step is evaluated that depends on it. The next line below will establish
-    // such a dependency.
-    const run_cmd = b.addRunArtifact(exe);
-
-    // By making the run step depend on the install step, it will be run from the
-    // installation directory rather than directly from within the cache directory.
-    // This is not necessary, however, if the application depends on other installed
-    // files, this ensures they will be present and in the expected location.
-    run_cmd.step.dependOn(b.getInstallStep());
-
-    // This allows the user to pass arguments to the application in the build
-    // command itself, like this: `zig build run -- arg1 arg2 etc`
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    // This creates a build step. It will be visible in the `zig build --help` menu,
-    // and can be selected like this: `zig build run`
-    // This will evaluate the `run` step rather than the default, which is "install".
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
+    const block_validation_step = b.step("block-validation", "Run block validation example");
+    block_validation_step.dependOn(&b.addInstallArtifact(block_validation_example, .{}).step);
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
