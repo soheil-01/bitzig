@@ -48,6 +48,10 @@ pub const merkle = struct {
     pub const MerkleBlock = @import("merkle/merkle_block.zig");
 };
 
+pub const bloom_filter = struct {
+    pub const BloomFilter = @import("bloom_filter/bloom_filter.zig");
+};
+
 test {
     @import("std").testing.refAllDeclsRecursive(@This());
 }

@@ -286,19 +286,34 @@ pub fn merkleRoot(allocator: std.mem.Allocator, hashes: [][32]u8) ![32]u8 {
     return current_hashes[0];
 }
 
-pub fn bytesToBitField(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
-    var flag_bits = std.ArrayList(u8).init(allocator);
+pub fn bytesToBitField(allocator: std.mem.Allocator, bytes: []const u8) ![]u1 {
+    var flag_bits = std.ArrayList(u1).init(allocator);
 
     for (0..bytes.len) |i| {
         var byte = bytes[i];
 
         for (0..8) |_| {
-            try flag_bits.append(byte & 1);
+            try flag_bits.append(@intCast(byte & 1));
             byte >>= 1;
         }
     }
 
     return flag_bits.toOwnedSlice();
+}
+
+pub fn bitFieldToBytes(allocator: std.mem.Allocator, bit_field: []const u1) ![]u8 {
+    assert(bit_field.len % 8 == 0);
+
+    var result = try allocator.alloc(u8, bit_field.len / 8);
+    @memset(result, 0);
+
+    for (bit_field, 0..) |bit, i| {
+        const byte_index = i / 8;
+        const bit_index: u3 = @intCast(i % 8);
+        if (bit == 1) result[byte_index] |= @as(u8, 1) << bit_index;
+    }
+
+    return result;
 }
 
 const testing = std.testing;
@@ -398,4 +413,21 @@ test "merkleRoot" {
     const actual = try merkleRoot(testing_alloc, hashes);
 
     try testing.expectEqualSlices(u8, expected, &actual);
+}
+
+test "bytesToBitField and bitFieldToBytes" {
+    const bit_field = [_]u1{ 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
+    const bytes = [_]u8{ 0x40, 0x00, 0x60, 0x0a, 0x08, 0x00, 0x00, 0x01, 0x09, 0x40 };
+
+    {
+        const actual = try bitFieldToBytes(testing_alloc, &bit_field);
+        defer testing_alloc.free(actual);
+        try testing.expectEqualSlices(u8, &bytes, actual);
+    }
+
+    {
+        const actual = try bytesToBitField(testing_alloc, &bytes);
+        defer testing_alloc.free(actual);
+        try testing.expectEqualSlices(u1, &bit_field, actual);
+    }
 }
