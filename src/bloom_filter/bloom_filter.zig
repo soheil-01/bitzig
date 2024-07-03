@@ -64,3 +64,41 @@ pub fn serialize(self: BloomFilter, allocator: std.mem.Allocator) ![]u8 {
 
     return result.toOwnedSlice();
 }
+
+const testing = std.testing;
+const testing_alloc = testing.allocator;
+
+test "BloomFilter: add and serialize" {
+    const bf = try BloomFilter.init(testing_alloc, 10, 5, 99);
+    defer bf.deinit(testing_alloc);
+
+    bf.add("Hello World");
+
+    {
+        const filter_bytes = try bf.filterBytes(testing_alloc);
+        defer testing_alloc.free(filter_bytes);
+
+        const expected = [_]u8{ 0x00, 0x00, 0x00, 0x0a, 0x08, 0x00, 0x00, 0x00, 0x01, 0x40 };
+        try testing.expectEqualSlices(u8, &expected, filter_bytes);
+    }
+
+    bf.add("Goodbye!");
+
+    {
+        const filter_bytes = try bf.filterBytes(testing_alloc);
+        defer testing_alloc.free(filter_bytes);
+
+        const expected = [_]u8{ 0x40, 0x00, 0x60, 0x0a, 0x08, 0x00, 0x00, 0x01, 0x09, 0x40 };
+        try testing.expectEqualSlices(u8, &expected, filter_bytes);
+    }
+
+    {
+        const expected = try utils.hexToBytes(testing_alloc, "0a4000600a080000010940050000006300000001");
+        defer testing_alloc.free(expected);
+
+        const actual = try bf.serialize(testing_alloc);
+        defer testing_alloc.free(actual);
+
+        try testing.expectEqualSlices(u8, expected, actual);
+    }
+}
