@@ -44,14 +44,14 @@ pub fn fetchAndParse(self: *TransactionFetcher, allocator: std.mem.Allocator, tx
         const raw_transaction = try std.mem.concat(self.allocator, u8, &.{ transaction_bytes[0..4], transaction_bytes[6..] });
         defer self.allocator.free(raw_transaction);
 
-        transaction = try Transaction.parse(allocator, raw_transaction, testnet);
+        transaction = try Transaction.parseWithTestnet(allocator, raw_transaction, testnet);
 
         var locktime_bytes: [4]u8 = undefined;
         std.mem.copyForwards(u8, &locktime_bytes, raw_transaction[raw_transaction.len - 4 ..]);
 
         transaction.locktime = std.mem.readInt(u32, &locktime_bytes, .little);
     } else {
-        transaction = try Transaction.parse(allocator, transaction_bytes, testnet);
+        transaction = try Transaction.parseWithTestnet(allocator, transaction_bytes, testnet);
     }
 
     const fetched_tx_id = try transaction.id();

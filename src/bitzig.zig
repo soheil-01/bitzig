@@ -39,6 +39,7 @@ pub const network = struct {
         pub const VerAckMessage = @import("network/message/ver_ack_message.zig");
         pub const GetHeadersMessage = @import("network/message/get_headers_message.zig");
         pub const HeadersMessage = @import("network/message/headers_message.zig");
+        pub const GetDataMessage = @import("network/message/get_data_message.zig");
     };
     pub const SimpleNode = @import("network/simple_node.zig");
 };

@@ -52,11 +52,22 @@ pub fn build(b: *std.Build) void {
     });
     block_validation_example.root_module.addImport("bitzig", module);
 
+    const getting_transactions_example = b.addExecutable(.{
+        .name = "getting_transactions",
+        .root_source_file = b.path("examples/getting_transactions.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    getting_transactions_example.root_module.addImport("bitzig", module);
+
     const transaction_creation_step = b.step("transaction-creation", "Run transaction creation example");
     transaction_creation_step.dependOn(&b.addInstallArtifact(transaction_creation_example, .{}).step);
 
     const block_validation_step = b.step("block-validation", "Run block validation example");
     block_validation_step.dependOn(&b.addInstallArtifact(block_validation_example, .{}).step);
+
+    const getting_transactions_step = b.step("getting-transactions", "Run getting transactions example");
+    getting_transactions_step.dependOn(&b.addInstallArtifact(getting_transactions_example, .{}).step);
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.

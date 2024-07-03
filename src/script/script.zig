@@ -143,6 +143,18 @@ pub fn isP2shScriptPubkey(self: Script) bool {
         cmds[2].opcode == .OP_EQUAL;
 }
 
+pub fn address(self: Script, dest: []u8, testnet: bool) ![]u8 {
+    if (self.isP2pkhScriptPubkey()) {
+        const h160 = self.cmds.items[2].element;
+        return utils.h160ToP2pkhAddress(dest, std.mem.bytesToValue([20]u8, h160), testnet);
+    } else if (self.isP2shScriptPubkey()) {
+        const h160 = self.cmds.items[1].element;
+        return utils.h160ToP2shAddress(dest, std.mem.bytesToValue([20]u8, h160), testnet);
+    }
+
+    return error.UnknownScriptPubKey;
+}
+
 pub fn toString(self: Script, allocator: std.mem.Allocator) ![]u8 {
     var result = std.ArrayList(u8).init(allocator);
 

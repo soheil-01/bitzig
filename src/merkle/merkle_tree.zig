@@ -95,7 +95,7 @@ pub fn rightExists(self: MerkleTree) bool {
     return self.nodes[self.current_depth + 1].len > self.current_index * 2 + 1;
 }
 
-pub fn populateTree(self: *MerkleTree, flag_bits: []u8, hashes: [][32]u8) !void {
+pub fn populateTree(self: *MerkleTree, flag_bits: []u1, hashes: [][32]u8) !void {
     var flag_index: usize = 0;
     var hash_index: usize = 0;
 
@@ -187,7 +187,7 @@ test "MerkleTree: populateTree" {
         var tree = try MerkleTree.init(testing_alloc, @intCast(hashes.len));
         defer tree.deinit();
 
-        var flag_bits = [_]u8{1} ** 31;
+        var flag_bits = [_]u1{1} ** 31;
         try tree.populateTree(&flag_bits, hashes);
 
         const merkle_root = try utils.hexToBytes(testing_alloc, "597c4bafe3832b17cbbabe56f878f4fc2ad0f6a402cee7fa851a9cb205f87ed1");
@@ -216,7 +216,7 @@ test "MerkleTree: populateTree" {
         var tree = try MerkleTree.init(testing_alloc, @intCast(hashes.len));
         defer tree.deinit();
 
-        var flag_bits = [_]u8{1} ** 11;
+        var flag_bits = [_]u1{1} ** 11;
         try tree.populateTree(&flag_bits, hashes);
 
         const merkle_root = try utils.hexToBytes(testing_alloc, "a8e8bd023169b81bc56854137a135b97ef47a6a7237f4c6e037baed16285a5ab");
