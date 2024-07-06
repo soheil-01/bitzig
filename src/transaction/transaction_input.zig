@@ -11,6 +11,7 @@ prev_tx: [32]u8,
 prev_index: u32,
 script_sig: Script,
 sequence: u32,
+witness: ?[]Script.Cmd = null,
 
 pub fn init(allocator: std.mem.Allocator, prev_tx: [32]u8, prev_index: u32, script_sig: ?Script, sequence: ?u32) !TransactionInput {
     return .{ .allocator = allocator, .prev_tx = prev_tx, .prev_index = prev_index, .script_sig = script_sig orelse try Script.init(allocator), .sequence = sequence orelse 0xffffffff };
@@ -18,6 +19,12 @@ pub fn init(allocator: std.mem.Allocator, prev_tx: [32]u8, prev_index: u32, scri
 
 pub fn deinit(self: TransactionInput) void {
     self.script_sig.deinit();
+    if (self.witness) |witness| {
+        for (witness) |item| {
+            item.free(self.allocator);
+        }
+        self.allocator.free(witness);
+    }
 }
 
 pub fn toString(self: TransactionInput, allocator: std.mem.Allocator) ![]u8 {

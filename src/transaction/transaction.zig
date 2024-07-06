@@ -22,9 +22,21 @@ tx_ins: []TransactionInput,
 tx_outs: []TransactionOutput,
 locktime: u32,
 testnet: bool,
+segwit: bool,
+hash_prevouts: ?[32]u8 = null,
+hash_sequence: ?[32]u8 = null,
+hash_outputs: ?[32]u8 = null,
 
-pub fn init(allocator: std.mem.Allocator, version: u32, tx_ins: []TransactionInput, tx_outs: []TransactionOutput, locktime: ?u32, testnet: bool) !Transaction {
-    return .{ .allocator = allocator, .version = version, .tx_ins = tx_ins, .tx_outs = tx_outs, .locktime = locktime orelse 0xffffffff, .testnet = testnet };
+pub fn init(allocator: std.mem.Allocator, version: u32, tx_ins: []TransactionInput, tx_outs: []TransactionOutput, locktime: ?u32, testnet: bool, segwit: bool) !Transaction {
+    return .{
+        .allocator = allocator,
+        .version = version,
+        .tx_ins = tx_ins,
+        .tx_outs = tx_outs,
+        .locktime = locktime orelse 0xffffffff,
+        .testnet = testnet,
+        .segwit = segwit,
+    };
 }
 
 pub fn deinit(self: Transaction, free_tx_slices: bool) void {
@@ -78,7 +90,7 @@ pub fn id(self: Transaction) ![64]u8 {
 }
 
 pub fn hash(self: Transaction) ![32]u8 {
-    const serialized = try self.serialize(self.allocator);
+    const serialized = try self.serializeLegacy(self.allocator);
     defer self.allocator.free(serialized);
 
     var result = utils.hash256(serialized);
@@ -151,7 +163,8 @@ pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index:
     const script_pubkey = try tx_in.scriptPubkey(fetcher, self.testnet);
     defer script_pubkey.deinit();
 
-    var redeem_script: ?Script = null;
+    var z: u256 = undefined;
+    var witness: ?[]Script.Cmd = null;
 
     if (script_pubkey.isP2shScriptPubkey()) {
         // the last cmd in a p2sh is the redeem script
@@ -160,10 +173,22 @@ pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index:
         defer self.allocator.free(cmd_len);
         const raw_redeem = try std.mem.concat(self.allocator, u8, &.{ cmd_len, cmd });
         defer self.allocator.free(raw_redeem);
-        redeem_script = try Script.parse(self.allocator, raw_redeem);
-    }
+        const redeem_script = try Script.parse(self.allocator, raw_redeem);
 
-    const z = try self.sigHash(fetcher, input_index, redeem_script);
+        if (redeem_script.isP2wpkhScriptPubkey()) {
+            z = try self.sigHashBip143(fetcher, input_index, redeem_script);
+            witness = tx_in.witness;
+        } else {
+            z = try self.sigHash(fetcher, input_index, redeem_script);
+        }
+    } else {
+        if (script_pubkey.isP2wpkhScriptPubkey()) {
+            z = self.sigHashBip143(fetcher, input_index, null);
+            witness = tx_in.witness;
+        } else {
+            z = try self.sigHash(fetcher, input_index, null);
+        }
+    }
 
     const combined = try tx_in.script_sig.add(script_pubkey, self.allocator);
     defer combined.deinit();
@@ -171,7 +196,7 @@ pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index:
     const string = try combined.toString(self.allocator);
     defer self.allocator.free(string);
 
-    return combined.evaluate(z);
+    return combined.evaluate(z, witness);
 }
 
 pub fn verify(self: Transaction, fetcher: *TransactionFetcher) !bool {
@@ -210,6 +235,10 @@ pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, input_index: u
 }
 
 pub fn serialize(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
+    if (self.segwit) self.serializeSegwit(allocator) else self.serializeLegacy(allocator);
+}
+
+pub fn serializeLegacy(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
     var result = std.ArrayList(u8).init(allocator);
 
     const version_bytes = utils.encodeInt(u32, self.version, .little);
@@ -239,6 +268,58 @@ pub fn serialize(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
     return result.toOwnedSlice();
 }
 
+pub fn serializeSegwit(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
+    var result = std.ArrayList(u8).init(allocator);
+
+    const version_bytes = utils.encodeInt(u32, self.version, .little);
+    try result.appendSlice(&version_bytes);
+
+    // segwit marker
+    try result.append(0);
+    try result.append(1);
+
+    const num_inputs = try utils.encodeVarint(allocator, self.tx_ins.len);
+    defer allocator.free(num_inputs);
+    try result.appendSlice(num_inputs);
+    for (self.tx_ins) |tx_in| {
+        const serialized_tx_in = try tx_in.serialize(allocator);
+        defer allocator.free(serialized_tx_in);
+        try result.appendSlice(serialized_tx_in);
+    }
+
+    const num_outputs = try utils.encodeVarint(allocator, self.tx_outs.len);
+    defer allocator.free(num_outputs);
+    try result.appendSlice(num_outputs);
+    for (self.tx_outs) |tx_out| {
+        const serialized_tx_out = try tx_out.serialize(allocator);
+        defer allocator.free(serialized_tx_out);
+        try result.appendSlice(serialized_tx_out);
+    }
+
+    for (self.tx_ins) |tx_in| {
+        assert(tx_in.witness != null);
+        const witness = tx_in.witness.?;
+        try result.append(@intCast(witness.len));
+        for (witness) |item| {
+            switch (item) {
+                .opcode => |opcode| try result.append(@intFromEnum(opcode)),
+                .element => |element| {
+                    const element_len = try utils.encodeVarint(allocator, element.len);
+                    defer allocator.free(element_len);
+                    try result.appendSlice(element_len);
+
+                    try result.appendSlice(element);
+                },
+            }
+        }
+    }
+
+    const locktime_bytes = utils.encodeInt(u32, self.locktime, .little);
+    try result.appendSlice(&locktime_bytes);
+
+    return result.toOwnedSlice();
+}
+
 pub fn isCoinbase(self: Transaction) bool {
     return self.tx_ins.len == 1 and std.mem.eql(u8, &self.tx_ins[0].prev_tx, &[_]u8{0} ** 32) and self.tx_ins[0].prev_index == 0xffffffff;
 }
@@ -259,10 +340,15 @@ pub fn parseWithTestnet(allocator: std.mem.Allocator, source: []const u8, testne
     var fb = std.io.fixedBufferStream(source);
     const reader = fb.reader();
 
-    return parseFromReader(allocator, reader, testnet);
+    reader.skipBytes(4, .{}) catch return error.InvalidEncoding;
+    const segwit_marker = reader.readByte() catch return error.InvalidEncoding;
+
+    try fb.seekTo(0);
+
+    return if (segwit_marker == 0) parseSegwitFromReader(allocator, reader, testnet) else parseLegacyFromReader(allocator, reader, testnet);
 }
 
-pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype, testnet: bool) !Transaction {
+pub fn parseLegacyFromReader(allocator: std.mem.Allocator, reader: anytype, testnet: bool) !Transaction {
     const version = reader.readInt(u32, .little) catch return error.InvalidEncoding;
 
     const num_inputs = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
@@ -279,7 +365,67 @@ pub fn parseFromReader(allocator: std.mem.Allocator, reader: anytype, testnet: b
 
     const locktime = reader.readInt(u32, .little) catch return error.InvalidEncoding;
 
-    return .{ .allocator = allocator, .version = version, .tx_ins = inputs, .tx_outs = outputs, .locktime = locktime, .testnet = testnet };
+    return .{
+        .allocator = allocator,
+        .version = version,
+        .tx_ins = inputs,
+        .tx_outs = outputs,
+        .locktime = locktime,
+        .testnet = testnet,
+        .segwit = false,
+    };
+}
+
+pub fn parseSegwitFromReader(allocator: std.mem.Allocator, reader: anytype, testnet: bool) !Transaction {
+    const version = reader.readInt(u32, .little) catch return error.InvalidEncoding;
+
+    const marker = reader.readBytesNoEof(2) catch return error.InvalidEncoding;
+
+    if (!std.mem.eql(u8, &marker, &[_]u8{ 0, 1 })) return error.NotASegwitTransaction;
+
+    const num_inputs = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
+    const inputs = try allocator.alloc(TransactionInput, num_inputs);
+    for (0..num_inputs) |i| {
+        inputs[i] = try TransactionInput.parseFromReader(allocator, reader);
+    }
+
+    const num_outputs = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
+    const outputs = try allocator.alloc(TransactionOutput, num_outputs);
+    for (0..num_outputs) |i| {
+        outputs[i] = try TransactionOutput.parseFromReader(allocator, reader);
+    }
+
+    for (inputs) |tx_in| {
+        const num_items = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
+        var items = try allocator.alloc(Script.Cmd, num_items);
+        for (0..num_items) |i| {
+            const item_len = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
+            if (item_len == 0) {
+                items[i] = Script.Cmd{ .opcode = .OP_0 };
+            } else {
+                const bytes = try allocator.alloc(u8, item_len);
+                errdefer allocator.free(bytes);
+
+                try reader.readNoEof(bytes) catch return error.InvalidEncoding;
+
+                items[i] = Script.Cmd{ .element = bytes };
+            }
+        }
+
+        tx_in.witness = items;
+    }
+
+    const locktime = reader.readInt(u32, .little) catch return error.InvalidEncoding;
+
+    return .{
+        .allocator = allocator,
+        .version = version,
+        .tx_ins = inputs,
+        .tx_outs = outputs,
+        .locktime = locktime,
+        .testnet = testnet,
+        .segwit = true,
+    };
 }
 
 const testing = std.testing;

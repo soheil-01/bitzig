@@ -5,6 +5,8 @@ const Opcode = @import("../interpreter/opcode.zig").Opcode;
 
 const Script = @This();
 
+const assert = std.debug.assert;
+
 pub const Cmd = union(enum) {
     opcode: Opcode,
     element: []const u8,
@@ -57,6 +59,16 @@ pub fn p2shScript(allocator: std.mem.Allocator, h160: [20]u8) !Script {
         Cmd{ .opcode = .OP_HASH160 },
         Cmd{ .element = try allocator.dupe(u8, &h160) },
         Cmd{ .opcode = .OP_EQUAL },
+    });
+
+    return .{ .allocator = allocator, .cmds = cmds };
+}
+
+pub fn p2wpkhScript(allocator: std.mem.Allocator, h160: [20]u8) !Script {
+    var cmds = std.ArrayList(Cmd).init(allocator);
+    try cmds.appendSlice(&.{
+        Cmd{ .opcode = .OP_0 },
+        Cmd{ .element = try allocator.dupe(u8, &h160) },
     });
 
     return .{ .allocator = allocator, .cmds = cmds };
@@ -143,6 +155,17 @@ pub fn isP2shScriptPubkey(self: Script) bool {
         cmds[2].opcode == .OP_EQUAL;
 }
 
+pub fn isP2wpkhScriptPubkey(self: Script) bool {
+    const cmds = self.cmds.items;
+
+    // OP_0 <20-byte hash>
+    return cmds.len == 2 and
+        cmds[0] == .opcode and
+        cmds[0].opcode == 0 and
+        cmds[1] == .element and
+        cmds[1].element.len == 20;
+}
+
 pub fn address(self: Script, dest: []u8, testnet: bool) ![]u8 {
     if (self.isP2pkhScriptPubkey()) {
         const h160 = self.cmds.items[2].element;
@@ -179,7 +202,7 @@ pub fn toString(self: Script, allocator: std.mem.Allocator) ![]u8 {
     return result.toOwnedSlice();
 }
 
-pub fn evaluate(self: Script, z: u256) !bool {
+pub fn evaluate(self: Script, z: u256, witness: ?[]Script.Cmd) !bool {
     var cmds = try self.cmds.clone();
     defer cmds.deinit();
 
@@ -235,6 +258,8 @@ pub fn evaluate(self: Script, z: u256) !bool {
             },
             .element => |element| {
                 try stack.append(try self.allocator.dupe(u8, element));
+
+                // p2sh rule
                 if (cmds.items.len == 3 and
                     cmds.items[0] == .opcode and
                     cmds.items[0].opcode == .OP_HASH160 and
@@ -267,6 +292,18 @@ pub fn evaluate(self: Script, z: u256) !bool {
                         script_source,
                     );
                     defer self.allocator.free(script.cmds.items);
+
+                    try cmds.appendSlice(script.cmds.items);
+                }
+
+                // witness program, p2wpkh rule
+                if (stack.items.len == 0 and stack.items[0].len == 0 and stack.items[1].len == 20) {
+                    assert(witness != null);
+
+                    const h160 = stack.pop();
+                    _ = stack.pop();
+                    try cmds.appendSlice(witness);
+                    const script = try p2pkhScript(self.allocator, std.mem.bytesToValue([20]u8, h160));
 
                     try cmds.appendSlice(script.cmds.items);
                 }
