@@ -93,6 +93,13 @@ pub fn decodeBase58Address(source: []const u8) ![]u8 {
     return combined[1 .. combined.len - 4];
 }
 
+pub fn sha256(msg: []const u8) [32]u8 {
+    var result: [32]u8 = undefined;
+    Sha256.hash(msg, &result, .{});
+
+    return result;
+}
+
 pub fn hash256(msg: []const u8) [32]u8 {
     var sha256_1: [32]u8 = undefined;
     Sha256.hash(msg, &sha256_1, .{});

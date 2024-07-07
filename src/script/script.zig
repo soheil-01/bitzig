@@ -74,6 +74,16 @@ pub fn p2wpkhScript(allocator: std.mem.Allocator, h160: [20]u8) !Script {
     return .{ .allocator = allocator, .cmds = cmds };
 }
 
+pub fn p2wshScript(allocator: std.mem.Allocator, h256: [32]u8) !Script {
+    var cmds = std.ArrayList(Cmd).init(allocator);
+    try cmds.appendSlice(&.{
+        Cmd{ .opcode = .OP_0 },
+        Cmd{ .element = try allocator.dupe(u8, &h256) },
+    });
+
+    return .{ .allocator = allocator, .cmds = cmds };
+}
+
 pub fn deinit(self: Script) void {
     for (self.cmds.items) |cmd| cmd.free(self.allocator);
     self.cmds.deinit();
@@ -164,6 +174,17 @@ pub fn isP2wpkhScriptPubkey(self: Script) bool {
         cmds[0].opcode == 0 and
         cmds[1] == .element and
         cmds[1].element.len == 20;
+}
+
+pub fn isP2wshScriptPubkey(self: Script) bool {
+    const cmds = self.cmds.items;
+
+    // OP_0 <32-byte hash>
+    return cmds.len == 2 and
+        cmds[0] == .opcode and
+        cmds[0].opcode == 0 and
+        cmds[1] == .element and
+        cmds[1].element.len == 32;
 }
 
 pub fn address(self: Script, dest: []u8, testnet: bool) ![]u8 {
@@ -297,13 +318,38 @@ pub fn evaluate(self: Script, z: u256, witness: ?[]Script.Cmd) !bool {
                 }
 
                 // witness program, p2wpkh rule
-                if (stack.items.len == 0 and stack.items[0].len == 0 and stack.items[1].len == 20) {
+                if (stack.items.len == 2 and stack.items[0].len == 0 and stack.items[1].len == 20) {
                     assert(witness != null);
 
                     const h160 = stack.pop();
                     _ = stack.pop();
-                    try cmds.appendSlice(witness);
+                    try cmds.appendSlice(witness.?);
                     const script = try p2pkhScript(self.allocator, std.mem.bytesToValue([20]u8, h160));
+
+                    try cmds.appendSlice(script.cmds.items);
+                }
+
+                // witness program, p2wsh rule
+                if (stack.items.len == 2 and stack.items[0].len == 0 and stack.items[1].len == 32) {
+                    assert(witness != null);
+
+                    const h256 = stack.pop();
+                    _ = stack.pop();
+                    try cmds.appendSlice(witness.?[0 .. witness.?.len - 1]);
+                    const witness_script = witness.?[witness.?.len - 1].element;
+
+                    if (!std.mem.eql(u8, h256, &utils.sha256(witness_script))) {
+                        // TODO: log error
+                        return false;
+                    }
+
+                    const witness_script_len = try utils.encodeVarint(self.allocator, witness_script.len);
+                    defer self.allocator.free(witness_script_len);
+
+                    const raw_witness_script = try std.mem.concat(self.allocator, u8, &.{ witness_script_len, witness_script });
+                    defer self.allocator.free(raw_witness_script);
+
+                    const script = try Script.parse(self.allocator, raw_witness_script);
 
                     try cmds.appendSlice(script.cmds.items);
                 }

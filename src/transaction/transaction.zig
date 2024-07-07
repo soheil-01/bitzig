@@ -286,17 +286,40 @@ pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index:
         const raw_redeem = try std.mem.concat(self.allocator, u8, &.{ cmd_len, cmd });
         defer self.allocator.free(raw_redeem);
         const redeem_script = try Script.parse(self.allocator, raw_redeem);
+        defer redeem_script.deinit();
 
         if (redeem_script.isP2wpkhScriptPubkey()) {
             z = try self.sigHashBip143(fetcher, input_index, redeem_script, null);
-            witness = tx_in.witness;
+            witness = tx_in.witness.?;
+        } else if (redeem_script.isP2wshScriptPubkey()) {
+            assert(tx_in.witness != null);
+            witness = tx_in.witness.?;
+            const witness_cmd = witness.?[witness.?.len - 1].element;
+            const witness_cmd_len = try utils.encodeVarint(self.allocator, witness_cmd.len);
+            defer self.allocator.free(witness_cmd_len);
+            const raw_witness = try std.mem.concat(self.allocator, u8, &.{ witness_cmd_len, witness_cmd });
+            defer self.allocator.free(raw_witness);
+            const witness_script = try Script.parse(self.allocator, raw_witness);
+            defer witness_script.deinit();
+            z = try self.sigHashBip143(fetcher, input_index, null, witness_script);
         } else {
             z = try self.sigHash(fetcher, input_index, redeem_script);
         }
     } else {
         if (script_pubkey.isP2wpkhScriptPubkey()) {
             z = self.sigHashBip143(fetcher, input_index, null, null);
-            witness = tx_in.witness;
+            witness = tx_in.witness.?;
+        } else if (script_pubkey.isP2wshScriptPubkey()) {
+            assert(tx_in.witness != null);
+            witness = tx_in.witness.?;
+            const witness_cmd = witness.?[witness.?.len - 1].element;
+            const witness_cmd_len = try utils.encodeVarint(self.allocator, witness_cmd.len);
+            defer self.allocator.free(witness_cmd_len);
+            const raw_witness = try std.mem.concat(self.allocator, u8, &.{ witness_cmd_len, witness_cmd });
+            defer self.allocator.free(raw_witness);
+            const witness_script = try Script.parse(self.allocator, raw_witness);
+            defer witness_script.deinit();
+            z = try self.sigHashBip143(fetcher, input_index, null, witness_script);
         } else {
             z = try self.sigHash(fetcher, input_index, null);
         }
