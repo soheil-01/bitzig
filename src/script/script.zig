@@ -171,7 +171,7 @@ pub fn isP2wpkhScriptPubkey(self: Script) bool {
     // OP_0 <20-byte hash>
     return cmds.len == 2 and
         cmds[0] == .opcode and
-        cmds[0].opcode == 0 and
+        cmds[0].opcode == .OP_0 and
         cmds[1] == .element and
         cmds[1].element.len == 20;
 }
@@ -182,7 +182,7 @@ pub fn isP2wshScriptPubkey(self: Script) bool {
     // OP_0 <32-byte hash>
     return cmds.len == 2 and
         cmds[0] == .opcode and
-        cmds[0].opcode == 0 and
+        cmds[0].opcode == .OP_0 and
         cmds[1] == .element and
         cmds[1].element.len == 32;
 }
@@ -223,29 +223,31 @@ pub fn toString(self: Script, allocator: std.mem.Allocator) ![]u8 {
     return result.toOwnedSlice();
 }
 
-pub fn evaluate(self: Script, z: u256, witness: ?[]Script.Cmd) !bool {
-    var cmds = try self.cmds.clone();
-    defer cmds.deinit();
-
-    std.mem.reverse(Cmd, cmds.items);
+pub fn evaluate(self: Script, z: u256, witness: ?[]Cmd) !bool {
+    var cmds = try std.ArrayList(Cmd).initCapacity(self.allocator, self.cmds.items.len);
+    defer {
+        for (cmds.items) |cmd| cmd.free(self.allocator);
+        cmds.deinit();
+    }
+    for (self.cmds.items) |cmd| try cmds.append(try cmd.clone(self.allocator));
 
     var stack = std.ArrayList([]const u8).init(self.allocator);
-    defer stack.deinit();
-
-    defer for (stack.items) |item| {
-        self.allocator.free(item);
-    };
+    defer {
+        for (stack.items) |item| self.allocator.free(item);
+        stack.deinit();
+    }
 
     var alt_stack = std.ArrayList([]const u8).init(self.allocator);
-    defer alt_stack.deinit();
-
-    defer for (alt_stack.items) |item| {
-        self.allocator.free(item);
-    };
+    defer {
+        for (alt_stack.items) |item| self.allocator.free(item);
+        alt_stack.deinit();
+    }
 
     const interpreter = Interpreter.init(self.allocator);
 
-    while (cmds.popOrNull()) |cmd| {
+    while (cmds.items.len > 0) {
+        const cmd = cmds.orderedRemove(0);
+
         switch (cmd) {
             .opcode => |opcode| {
                 const operation = Interpreter.table[@intFromEnum(opcode)];
@@ -278,7 +280,7 @@ pub fn evaluate(self: Script, z: u256, witness: ?[]Script.Cmd) !bool {
                 }
             },
             .element => |element| {
-                try stack.append(try self.allocator.dupe(u8, element));
+                try stack.append(element);
 
                 // p2sh rule
                 if (cmds.items.len == 3 and
@@ -290,6 +292,9 @@ pub fn evaluate(self: Script, z: u256, witness: ?[]Script.Cmd) !bool {
                     cmds.items[2].opcode == .OP_EQUAL)
                 {
                     _ = cmds.pop();
+
+                    const element_copy = try self.allocator.dupe(u8, element);
+                    defer self.allocator.free(element_copy);
 
                     if (!try Interpreter.table[@intFromEnum(Opcode.OP_HASH160)](interpreter, .{ .stack = &stack })) {
                         return false;
@@ -304,15 +309,17 @@ pub fn evaluate(self: Script, z: u256, witness: ?[]Script.Cmd) !bool {
                         return false;
                     }
 
-                    const element_len = try utils.encodeVarint(self.allocator, element.len);
-                    const script_source = try std.mem.concat(self.allocator, u8, &.{ element_len, element });
+                    const element_len = try utils.encodeVarint(self.allocator, element_copy.len);
+                    defer self.allocator.free(element_len);
+
+                    const script_source = try std.mem.concat(self.allocator, u8, &.{ element_len, element_copy });
                     defer self.allocator.free(script_source);
 
                     const script = try Script.parse(
                         self.allocator,
                         script_source,
                     );
-                    defer self.allocator.free(script.cmds.items);
+                    defer script.cmds.deinit();
 
                     try cmds.appendSlice(script.cmds.items);
                 }
@@ -322,9 +329,21 @@ pub fn evaluate(self: Script, z: u256, witness: ?[]Script.Cmd) !bool {
                     assert(witness != null);
 
                     const h160 = stack.pop();
-                    _ = stack.pop();
-                    try cmds.appendSlice(witness.?);
+                    defer self.allocator.free(h160);
+
+                    const op_0 = stack.pop();
+                    defer self.allocator.free(op_0);
+
+                    var witness_copy = try self.allocator.alloc(Cmd, witness.?.len);
+                    defer self.allocator.free(witness_copy);
+
+                    for (witness.?, 0..) |item, i|
+                        witness_copy[i] = try item.clone(self.allocator);
+
+                    try cmds.appendSlice(witness_copy);
+
                     const script = try p2pkhScript(self.allocator, std.mem.bytesToValue([20]u8, h160));
+                    defer script.cmds.deinit();
 
                     try cmds.appendSlice(script.cmds.items);
                 }
@@ -334,9 +353,21 @@ pub fn evaluate(self: Script, z: u256, witness: ?[]Script.Cmd) !bool {
                     assert(witness != null);
 
                     const h256 = stack.pop();
-                    _ = stack.pop();
-                    try cmds.appendSlice(witness.?[0 .. witness.?.len - 1]);
-                    const witness_script = witness.?[witness.?.len - 1].element;
+                    defer self.allocator.free(h256);
+
+                    const op_0 = stack.pop();
+                    defer self.allocator.free(op_0);
+
+                    var witness_copy = try self.allocator.alloc(Cmd, witness.?.len);
+                    defer self.allocator.free(witness_copy);
+
+                    for (witness.?, 0..) |item, i|
+                        witness_copy[i] = try item.clone(self.allocator);
+
+                    try cmds.appendSlice(witness_copy[0 .. witness_copy.len - 1]);
+
+                    const witness_script = witness_copy[witness_copy.len - 1].element;
+                    defer self.allocator.free(witness_script);
 
                     if (!std.mem.eql(u8, h256, &utils.sha256(witness_script))) {
                         // TODO: log error
@@ -350,6 +381,7 @@ pub fn evaluate(self: Script, z: u256, witness: ?[]Script.Cmd) !bool {
                     defer self.allocator.free(raw_witness_script);
 
                     const script = try Script.parse(self.allocator, raw_witness_script);
+                    defer script.cmds.deinit();
 
                     try cmds.appendSlice(script.cmds.items);
                 }
@@ -467,4 +499,54 @@ test "Script: serialize" {
     defer testing_alloc.free(serialized_script);
 
     try testing.expectEqualSlices(u8, script_pubkey, serialized_script);
+}
+
+test "Script: address" {
+    {
+        const expected_address = "1BenRpVUFK65JFWcQSuHnJKzc4M8ZP8Eqa";
+        const h160 = try utils.decodeBase58Address(expected_address);
+        const script = try p2pkhScript(testing_alloc, std.mem.bytesToValue([20]u8, h160));
+        defer script.deinit();
+
+        var buf: [60]u8 = undefined;
+        const actual_address = try script.address(&buf, false);
+
+        try testing.expectEqualSlices(u8, expected_address, actual_address);
+    }
+
+    {
+        const expected_address = "mrAjisaT4LXL5MzE81sfcDYKU3wqWSvf9q";
+        const h160 = try utils.decodeBase58Address(expected_address);
+        const script = try p2pkhScript(testing_alloc, std.mem.bytesToValue([20]u8, h160));
+        defer script.deinit();
+
+        var buf: [60]u8 = undefined;
+        const actual_address = try script.address(&buf, true);
+
+        try testing.expectEqualSlices(u8, expected_address, actual_address);
+    }
+
+    {
+        const expected_address = "3CLoMMyuoDQTPRD3XYZtCvgvkadrAdvdXh";
+        const h160 = try utils.decodeBase58Address(expected_address);
+        const script = try p2shScript(testing_alloc, std.mem.bytesToValue([20]u8, h160));
+        defer script.deinit();
+
+        var buf: [60]u8 = undefined;
+        const actual_address = try script.address(&buf, false);
+
+        try testing.expectEqualSlices(u8, expected_address, actual_address);
+    }
+
+    {
+        const expected_address = "2N3u1R6uwQfuobCqbCgBkpsgBxvr1tZpe7B";
+        const h160 = try utils.decodeBase58Address(expected_address);
+        const script = try p2shScript(testing_alloc, std.mem.bytesToValue([20]u8, h160));
+        defer script.deinit();
+
+        var buf: [60]u8 = undefined;
+        const actual_address = try script.address(&buf, true);
+
+        try testing.expectEqualSlices(u8, expected_address, actual_address);
+    }
 }

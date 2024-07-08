@@ -125,7 +125,7 @@ pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, input_index: usi
     try result.appendSlice(num_inputs);
 
     for (self.tx_ins, 0..) |tx_in, i| {
-        const script_sig = if (input_index == i) if (redeem_script) |script| script else try tx_in.scriptPubkey(fetcher, self.testnet) else null;
+        const script_sig = if (input_index == i) if (redeem_script) |script| try script.clone(self.allocator) else try tx_in.scriptPubkey(fetcher, self.testnet) else null;
         const tmp_tx_in = try TransactionInput.init(self.allocator, tx_in.prev_tx, tx_in.prev_index, script_sig, tx_in.sequence);
         defer tmp_tx_in.deinit();
 
@@ -158,7 +158,7 @@ pub fn sigHash(self: Transaction, fetcher: *TransactionFetcher, input_index: usi
     return std.mem.readInt(u256, &hash256_result, .big);
 }
 
-pub fn sigHashBip143(self: Transaction, fetcher: *TransactionFetcher, input_index: usize, redeem_script: ?Script, witness_script: ?Script) !u256 {
+pub fn sigHashBip143(self: *Transaction, fetcher: *TransactionFetcher, input_index: usize, redeem_script: ?Script, witness_script: ?Script) !u256 {
     var result = std.ArrayList(u8).init(self.allocator);
     defer result.deinit();
 
@@ -172,7 +172,7 @@ pub fn sigHashBip143(self: Transaction, fetcher: *TransactionFetcher, input_inde
 
     var prev_tx = tx_in.prev_tx;
     std.mem.reverse(u8, &prev_tx);
-    try result.appendSlice(prev_tx);
+    try result.appendSlice(&prev_tx);
 
     const prev_index_bytes = utils.encodeInt(u32, tx_in.prev_index, .little);
     try result.appendSlice(&prev_index_bytes);
@@ -221,7 +221,7 @@ pub fn sigHashBip143(self: Transaction, fetcher: *TransactionFetcher, input_inde
     return std.mem.readInt(u256, &hash256_result, .big);
 }
 
-pub fn hashPrevouts(self: Transaction) ![32]u8 {
+pub fn hashPrevouts(self: *Transaction) ![32]u8 {
     if (self.hash_prevouts == null) {
         var all_prevouts = std.ArrayList(u8).init(self.allocator);
         defer all_prevouts.deinit();
@@ -248,12 +248,12 @@ pub fn hashPrevouts(self: Transaction) ![32]u8 {
     return self.hash_prevouts.?;
 }
 
-pub fn hashSequence(self: Transaction) ![32]u8 {
-    if (self.hash_sequence == null) _ = self.hashPrevouts();
+pub fn hashSequence(self: *Transaction) ![32]u8 {
+    if (self.hash_sequence == null) _ = try self.hashPrevouts();
     return self.hash_sequence.?;
 }
 
-pub fn hashOutputs(self: Transaction) ![32]u8 {
+pub fn hashOutputs(self: *Transaction) ![32]u8 {
     if (self.hash_outputs == null) {
         var all_outputs = std.ArrayList(u8).init(self.allocator);
         defer all_outputs.deinit();
@@ -270,7 +270,7 @@ pub fn hashOutputs(self: Transaction) ![32]u8 {
     return self.hash_outputs.?;
 }
 
-pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index: usize) !bool {
+pub fn verifyInput(self: *Transaction, fetcher: *TransactionFetcher, input_index: usize) !bool {
     const tx_in = self.tx_ins[input_index];
     const script_pubkey = try tx_in.scriptPubkey(fetcher, self.testnet);
     defer script_pubkey.deinit();
@@ -289,10 +289,13 @@ pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index:
         defer redeem_script.deinit();
 
         if (redeem_script.isP2wpkhScriptPubkey()) {
+            assert(tx_in.witness != null);
+
             z = try self.sigHashBip143(fetcher, input_index, redeem_script, null);
             witness = tx_in.witness.?;
         } else if (redeem_script.isP2wshScriptPubkey()) {
             assert(tx_in.witness != null);
+
             witness = tx_in.witness.?;
             const witness_cmd = witness.?[witness.?.len - 1].element;
             const witness_cmd_len = try utils.encodeVarint(self.allocator, witness_cmd.len);
@@ -307,10 +310,13 @@ pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index:
         }
     } else {
         if (script_pubkey.isP2wpkhScriptPubkey()) {
-            z = self.sigHashBip143(fetcher, input_index, null, null);
+            assert(tx_in.witness != null);
+
+            z = try self.sigHashBip143(fetcher, input_index, null, null);
             witness = tx_in.witness.?;
         } else if (script_pubkey.isP2wshScriptPubkey()) {
             assert(tx_in.witness != null);
+
             witness = tx_in.witness.?;
             const witness_cmd = witness.?[witness.?.len - 1].element;
             const witness_cmd_len = try utils.encodeVarint(self.allocator, witness_cmd.len);
@@ -328,13 +334,10 @@ pub fn verifyInput(self: Transaction, fetcher: *TransactionFetcher, input_index:
     const combined = try tx_in.script_sig.add(script_pubkey, self.allocator);
     defer combined.deinit();
 
-    const string = try combined.toString(self.allocator);
-    defer self.allocator.free(string);
-
     return combined.evaluate(z, witness);
 }
 
-pub fn verify(self: Transaction, fetcher: *TransactionFetcher) !bool {
+pub fn verify(self: *Transaction, fetcher: *TransactionFetcher) !bool {
     if (try self.fee(fetcher) < 0) {
         return false;
     }
@@ -348,7 +351,7 @@ pub fn verify(self: Transaction, fetcher: *TransactionFetcher) !bool {
     return true;
 }
 
-pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, input_index: usize, privateKey: PrivateKey) !bool {
+pub fn signInput(self: *Transaction, fetcher: *TransactionFetcher, input_index: usize, privateKey: PrivateKey) !bool {
     const z = try self.sigHash(fetcher, input_index, null);
 
     var der_buf: [72]u8 = undefined;
@@ -370,7 +373,7 @@ pub fn signInput(self: Transaction, fetcher: *TransactionFetcher, input_index: u
 }
 
 pub fn serialize(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
-    if (self.segwit) self.serializeSegwit(allocator) else self.serializeLegacy(allocator);
+    return if (self.segwit) self.serializeSegwit(allocator) else self.serializeLegacy(allocator);
 }
 
 pub fn serializeLegacy(self: Transaction, allocator: std.mem.Allocator) ![]u8 {
@@ -530,7 +533,7 @@ pub fn parseSegwitFromReader(allocator: std.mem.Allocator, reader: anytype, test
         outputs[i] = try TransactionOutput.parseFromReader(allocator, reader);
     }
 
-    for (inputs) |tx_in| {
+    for (inputs) |*tx_in| {
         const num_items = utils.readVarintFromReader(reader) catch return error.InvalidEncoding;
         var items = try allocator.alloc(Script.Cmd, num_items);
         for (0..num_items) |i| {
@@ -541,7 +544,7 @@ pub fn parseSegwitFromReader(allocator: std.mem.Allocator, reader: anytype, test
                 const bytes = try allocator.alloc(u8, item_len);
                 errdefer allocator.free(bytes);
 
-                try reader.readNoEof(bytes) catch return error.InvalidEncoding;
+                reader.readNoEof(bytes) catch return error.InvalidEncoding;
 
                 items[i] = Script.Cmd{ .element = bytes };
             }
@@ -735,13 +738,13 @@ test "Transaction" {
     // verify p2pkh
     {
         {
-            const tx = try transactionFetcher.fetchAndParse(testing_alloc, "452c629d67e41baec3ac6f04fe744b4b9617f8f859c63b3002f8684e7a4fee03", false, false);
+            var tx = try transactionFetcher.fetchAndParse(testing_alloc, "452c629d67e41baec3ac6f04fe744b4b9617f8f859c63b3002f8684e7a4fee03", false, false);
             defer tx.deinit(true);
             try testing.expect(try tx.verify(&transactionFetcher));
         }
 
         {
-            const tx = try transactionFetcher.fetchAndParse(testing_alloc, "5418099cc755cb9dd3ebc6cf1a7888ad53a1a3beb5a025bce89eb1bf7f1650a2", true, false);
+            var tx = try transactionFetcher.fetchAndParse(testing_alloc, "5418099cc755cb9dd3ebc6cf1a7888ad53a1a3beb5a025bce89eb1bf7f1650a2", true, false);
             defer tx.deinit(true);
             try testing.expect(try tx.verify(&transactionFetcher));
         }
@@ -749,7 +752,35 @@ test "Transaction" {
 
     // verify p2sh
     {
-        const tx = try transactionFetcher.fetchAndParse(testing_alloc, "46df1a9484d0a81d03ce0ee543ab6e1a23ed06175c104a178268fad381216c2b", false, false);
+        var tx = try transactionFetcher.fetchAndParse(testing_alloc, "46df1a9484d0a81d03ce0ee543ab6e1a23ed06175c104a178268fad381216c2b", false, false);
+        defer tx.deinit(true);
+        try testing.expect(try tx.verify(&transactionFetcher));
+    }
+
+    // verify p2wpkh
+    {
+        var tx = try transactionFetcher.fetchAndParse(testing_alloc, "d869f854e1f8788bcff294cc83b280942a8c728de71eb709a2c29d10bfe21b7c", true, false);
+        defer tx.deinit(true);
+        try testing.expect(try tx.verify(&transactionFetcher));
+    }
+
+    // verify p2sh-p2wpkh
+    {
+        var tx = try transactionFetcher.fetchAndParse(testing_alloc, "c586389e5e4b3acb9d6c8be1c19ae8ab2795397633176f5a6442a261bbdefc3a", false, false);
+        defer tx.deinit(true);
+        try testing.expect(try tx.verify(&transactionFetcher));
+    }
+
+    // verify p2wsh
+    {
+        var tx = try transactionFetcher.fetchAndParse(testing_alloc, "78457666f82c28aa37b74b506745a7c7684dc7842a52a457b09f09446721e11c", false, false);
+        defer tx.deinit(true);
+        try testing.expect(try tx.verify(&transactionFetcher));
+    }
+
+    // verify p2sh-p2wsh
+    {
+        var tx = try transactionFetcher.fetchAndParse(testing_alloc, "954f43dbb30ad8024981c07d1f5eb6c9fd461e2cf1760dd1283f052af746fc88", false, false);
         defer tx.deinit(true);
         try testing.expect(try tx.verify(&transactionFetcher));
     }
@@ -760,7 +791,7 @@ test "Transaction" {
         const tx_bytes = try utils.hexToBytes(testing_alloc, "010000000199a24308080ab26e6fb65c4eccfadf76749bb5bfa8cb08f291320b3c21e56f0d0d00000000ffffffff02408af701000000001976a914d52ad7ca9b3d096a38e752c2018e6fbc40cdf26f88ac80969800000000001976a914507b27411ccf7f16f10297de6cef3f291623eddf88ac00000000");
         defer testing_alloc.free(tx_bytes);
 
-        const tx = try Transaction.parseWithTestnet(testing_alloc, tx_bytes, true);
+        var tx = try Transaction.parseWithTestnet(testing_alloc, tx_bytes, true);
         defer tx.deinit(true);
 
         try testing.expect(try tx.signInput(&transactionFetcher, 0, private_key));

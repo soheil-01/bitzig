@@ -36,7 +36,7 @@ pub fn main() !void {
     var tx_ins = [_]transaction.TransactionInput{tx_in};
     var tx_outs = [_]transaction.TransactionOutput{ change_output, target_output };
 
-    const tx = try transaction.Transaction.init(allocator, 1, &tx_ins, &tx_outs, 0, true);
+    var tx = try transaction.Transaction.init(allocator, 1, &tx_ins, &tx_outs, 0, true);
     defer tx.deinit(false);
 
     _ = try tx.signInput(&transactionFetcher, 0, private_key);

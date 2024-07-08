@@ -34,6 +34,7 @@ pub const table: [256]InstructionPtr = init: {
                 .OP_CHECKMULTISIG => opCheckMultiSig,
                 .OP_0 => push(0),
                 .OP_1 => push(1),
+                .OP_2 => push(2),
                 else => notFound,
             };
         }
@@ -119,31 +120,41 @@ fn opCheckMultiSig(self: Interpreter, options: Options) !bool {
         return false;
     }
 
-    const n: usize = @intCast(try self.decodeNum(options.stack.pop()));
+    const n_bytes = options.stack.pop();
+    defer self.allocator.free(n_bytes);
+    const n: usize = @intCast(try self.decodeNum(n_bytes));
     if (options.stack.items.len < n + 1) {
         return false;
     }
 
     var sec_pubkeys = try std.ArrayList([]const u8).initCapacity(self.allocator, n);
-    defer sec_pubkeys.deinit();
+    defer {
+        for (sec_pubkeys.items) |sec_pubkey| self.allocator.free(sec_pubkey);
+        sec_pubkeys.deinit();
+    }
 
     for (0..n) |_| {
         try sec_pubkeys.append(options.stack.pop());
     }
 
-    const m: usize = @intCast(try self.decodeNum(options.stack.pop()));
+    const m_bytes = options.stack.pop();
+    defer self.allocator.free(m_bytes);
+    const m: usize = @intCast(try self.decodeNum(m_bytes));
     if (options.stack.items.len < m + 1) {
         return false;
     }
 
     var der_signatures = try std.ArrayList([]const u8).initCapacity(self.allocator, m);
-    defer der_signatures.deinit();
+    defer {
+        for (der_signatures.items) |der_signature| self.allocator.free(der_signature);
+        der_signatures.deinit();
+    }
 
     for (0..m) |_| {
         try der_signatures.append(options.stack.pop());
     }
 
-    _ = options.stack.pop();
+    self.allocator.free(options.stack.pop());
 
     var points = try std.ArrayList(S256Point).initCapacity(self.allocator, n);
     defer points.deinit();
@@ -158,7 +169,7 @@ fn opCheckMultiSig(self: Interpreter, options: Options) !bool {
     defer sigs.deinit();
 
     for (der_signatures.items) |der_signature| {
-        try sigs.append(try Signature.fromDer(der_signature));
+        try sigs.append(try Signature.fromDer(der_signature[0 .. der_signature.len - 1]));
     }
 
     for (sigs.items) |sig| {

@@ -37,26 +37,19 @@ pub fn fetchAndParse(self: *TransactionFetcher, allocator: std.mem.Allocator, tx
     const transaction_bytes = try utils.hexToBytes(self.allocator, transaction_hex);
     defer self.allocator.free(transaction_bytes);
 
-    var transaction: Transaction = undefined;
+    const transaction = try Transaction.parseWithTestnet(allocator, transaction_bytes, testnet);
     errdefer transaction.deinit(true);
 
-    if (transaction_bytes[4] == 0) {
-        const raw_transaction = try std.mem.concat(self.allocator, u8, &.{ transaction_bytes[0..4], transaction_bytes[6..] });
-        defer self.allocator.free(raw_transaction);
-
-        transaction = try Transaction.parseWithTestnet(allocator, raw_transaction, testnet);
-
-        var locktime_bytes: [4]u8 = undefined;
-        std.mem.copyForwards(u8, &locktime_bytes, raw_transaction[raw_transaction.len - 4 ..]);
-
-        transaction.locktime = std.mem.readInt(u32, &locktime_bytes, .little);
+    var computed: [64]u8 = undefined;
+    if (transaction.segwit) {
+        computed = try transaction.id();
     } else {
-        transaction = try Transaction.parseWithTestnet(allocator, transaction_bytes, testnet);
+        var transaction_hash256 = utils.hash256(transaction_bytes);
+        std.mem.reverse(u8, &transaction_hash256);
+        computed = std.fmt.bytesToHex(transaction_hash256, .lower);
     }
 
-    const fetched_tx_id = try transaction.id();
-
-    if (!std.mem.eql(u8, tx_id, &fetched_tx_id)) {
+    if (!std.mem.eql(u8, tx_id, &computed)) {
         return error.NotTheSameTransactionId;
     }
 
