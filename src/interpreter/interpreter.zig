@@ -173,13 +173,18 @@ fn opCheckMultiSig(self: Interpreter, options: Options) !bool {
     }
 
     for (sigs.items) |sig| {
-        if (points.items.len == 0) {
-            // TODO: log error
-            return false;
-        }
+        var sig_valid = false;
 
         while (points.popOrNull()) |point| {
-            if (point.verify(z, sig)) break;
+            if (point.verify(z, sig)) {
+                sig_valid = true;
+                break;
+            }
+        }
+
+        if (!sig_valid) {
+            // TODO: log error
+            return false;
         }
     }
 
